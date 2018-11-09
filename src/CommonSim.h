@@ -1,30 +1,50 @@
+#ifndef COMMONSIM_H
+#define COMMONSIM_H
 
-#ifndef COMMONSIMULATION_H
-#define COMMONSIMULATION_H
-
-#include <igl/edges.h>
 #include "Simulation.h"
-
-class SubSimulation;
-
+#include <deque>
 using namespace std;
 
+class SubSim;
+
 /*
- * Simulation of a bird, a sling and obstacles
+ * Common simulation that holds multiple sub-simulations.
+ * Provides an interface for these sub-simulations to communicate.
  */
 class CommonSim : public Simulation {
 public:
-	CommonSim() : Simulation() { init(); }
+	CommonSim();
 
-	virtual void init() override;
+	// Initialisation of objects
+	virtual void init() override; 
 	virtual void resetMembers() override;
+
+	// Update vertex data with loaded objects
 	virtual void updateRenderGeometry() override;
+
+	// Advance simulation on all sub-simulations
 	virtual bool advance() override;
+
+	// Render cached vertex data
 	virtual void renderRenderGeometry(igl::opengl::glfw::Viewer &viewer) override;
 
-	std::vector<SubSimulation*> m_subSimulations; // Simulations to call
+#pragma region SettersAndGetters
+
+#pragma endregion SettersAndGetters
+
+	// Create and add given sub-simulation
+	template<typename T>
+	void addSubSim() {
+		m_subSims.push_back(new T(this));
+	}
+
+	// Forward Gui calls to sub-simulations
+	void updateSimulationParameters();
+	void drawSimulationParameterMenu();
 
 private:
+
+	std::vector<SubSim*> m_subSims;
 
 	std::vector<Eigen::MatrixXd> m_renderVs;  // vertex positions for rendering
 	std::vector<Eigen::MatrixXi> m_renderFs;  // face indices for rendering

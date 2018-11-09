@@ -1,7 +1,3 @@
-#define EIGEN_DONT_VECTORIZE
-#define EIGEN_DISABLE_UNALIGNED_ARRAY_ASSERT
-#define EIGEN_DONT_ALIGN_STATICALLY
-
 #include "RigidObject.h"
 
 RigidObject::RigidObject(const std::string& mesh_file, const ObjType t) {

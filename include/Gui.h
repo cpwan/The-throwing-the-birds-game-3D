@@ -1,10 +1,6 @@
 #ifndef GUI_H
 #define GUI_H
 
-//#define EIGEN_DONT_VECTORIZE
-//#define EIGEN_DONT_ALIGN_STATICALLY
-//#define EIGEN_DISABLE_UNALIGNED_ARRAY_ASSERT
-
 #include <igl/opengl/glfw/Viewer.h>
 #include <igl/opengl/glfw/imgui/ImGuiMenu.h>
 #include "Arrow.h"

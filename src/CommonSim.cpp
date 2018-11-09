@@ -1,37 +1,52 @@
 #include "CommonSim.h"
+#include "SubSim.h"
+
+CommonSim::CommonSim() : Simulation() 
+{
+}
 
 void CommonSim::init() {
 
-	m_dt = 1e-2;
+	for (SubSim* subSim : m_subSims) {
+		subSim->addObjects();
+	}
+
+	m_dt = 1e-3 * 3;
+
 	reset();
 }
 
-void CommonSim::resetMembers()
-{
-	for (RigidObject &o : m_objects) {
+void CommonSim::resetMembers() {
+
+	for (auto &o : m_objects) {
 		o.reset();
+	}
+
+	for (SubSim* subSim : m_subSims) {
+		subSim->resetMembers();
 	}
 }
 
 void CommonSim::updateRenderGeometry() {
-
-	// Copy data from all objects that have an id, otherwise expand cache
 	for (size_t i = 0; i < m_objects.size(); i++) {
 		RigidObject &o = m_objects[i];
 
-		while (i >= m_renderVs.size()) {
+		if (o.getID() < 0) {
 			m_renderVs.emplace_back();
 			m_renderFs.emplace_back();
 		}
-		o.getMesh(m_renderVs[i], m_renderFs[i]);
+
+		m_objects[i].getMesh(m_renderVs[i], m_renderFs[i]);
 	}
 }
 
 bool CommonSim::advance() {
 
+	for (SubSim* subSim : m_subSims) {
+		subSim->advance(m_time, m_dt);
+	}
 
-
-	// advance m_time
+	// advance time
 	m_time += m_dt;
 	m_step++;
 
@@ -39,17 +54,13 @@ bool CommonSim::advance() {
 }
 
 void CommonSim::renderRenderGeometry(igl::opengl::glfw::Viewer &viewer) {
-
 	for (size_t i = 0; i < m_objects.size(); i++) {
-
 		RigidObject &o = m_objects[i];
 		if (o.getID() < 0) {
 
-			// Register new object
 			if (i > 0) {
 				o.setID(viewer.append_mesh());
-			}
-			else {
+			} else {
 				o.setID(0);
 			}
 
@@ -60,16 +71,24 @@ void CommonSim::renderRenderGeometry(igl::opengl::glfw::Viewer &viewer) {
 			viewer.data_list[meshIndex].clear();
 		}
 
-		// Render object
 		size_t meshIndex = viewer.mesh_index(o.getID());
-		if (i < m_renderVs.size())
-		{
-			viewer.data_list[meshIndex].set_mesh(m_renderVs[i], m_renderFs[i]);
-			viewer.data_list[meshIndex].compute_normals();
-		}
+		viewer.data_list[meshIndex].set_mesh(m_renderVs[i], m_renderFs[i]);
+		viewer.data_list[meshIndex].compute_normals();
 
 		Eigen::MatrixXd color;
 		o.getColors(color);
 		viewer.data_list[meshIndex].set_colors(color);
+	}
+}
+
+void CommonSim::updateSimulationParameters() {
+	for (SubSim* subSim : m_subSims) {
+		subSim->updateSimulationParameters();
+	}
+}
+
+void CommonSim::drawSimulationParameterMenu() {
+	for (SubSim* subSim : m_subSims) {
+		subSim->drawSimulationParameterMenu();
 	}
 }

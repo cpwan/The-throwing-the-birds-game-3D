@@ -7,8 +7,8 @@
 
 void Gui::setSimulation(Simulation *sim) {
     p_simulator = new Simulator(sim);
-	p_simulator->reset();
-	p_simulator->setSimulationSpeed(m_simSpeed);
+    p_simulator->reset();
+    p_simulator->setSimulationSpeed(m_simSpeed);
 }
 
 void Gui::start() {

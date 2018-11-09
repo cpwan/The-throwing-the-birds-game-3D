@@ -1,7 +1,3 @@
-#define EIGEN_DONT_VECTORIZE
-#define EIGEN_DISABLE_UNALIGNED_ARRAY_ASSERT
-#define EIGEN_DONT_ALIGN_STATICALLY
-
 #include "BaseObject.h"
 #include <igl/per_face_normals.h>
 #include <igl/per_vertex_normals.h>
@@ -23,6 +19,9 @@ bool BaseObject::loadMesh(const std::string& path) {
             std::cout << "Reading OFF-file from " << path << " ..."
                       << std::endl;
         }
+		else {
+			std::cout << "Failed loading from " << path << " ..." << std::endl;
+		}
     }
 
     const std::string OBJ(".obj");
@@ -33,6 +32,9 @@ bool BaseObject::loadMesh(const std::string& path) {
                       << std::endl;
             igl::per_vertex_normals(m_mesh.V, m_mesh.F, m_mesh.V_normals);
         }
+		else {
+			std::cout << "Failed loading from " << path << " ..." << std::endl;
+		}
     }
     m_mesh.C = Eigen::MatrixXd(1, 3);
     m_mesh.C << 255.0 / 255.0, 228.0 / 255.0, 58.0 / 255.0;
