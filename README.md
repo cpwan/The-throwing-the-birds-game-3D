@@ -4,7 +4,7 @@ The framework splits the simulation into three sub-simulations,
 one for the sling (SlingSubSim), one for the bird (BirdSubSim) and 
 one for the obstacles and floor (ObstacleSubSim).
 
-This way, all contributors can work on different simulations without touching
+This way, all contributors can work on different simulations without
 producing merge conflicts.
 
 All meshes are loaded as rigid bodies, the collision system between differen 
