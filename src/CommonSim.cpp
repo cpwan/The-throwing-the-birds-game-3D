@@ -8,7 +8,9 @@ void CommonSim::init() {
 
 void CommonSim::resetMembers()
 {
-
+	for (RigidObject &o : m_objects) {
+		o.reset();
+	}
 }
 
 void CommonSim::updateRenderGeometry() {
@@ -16,12 +18,12 @@ void CommonSim::updateRenderGeometry() {
 	// Copy data from all objects that have an id, otherwise expand cache
 	for (size_t i = 0; i < m_objects.size(); i++) {
 		RigidObject &o = m_objects[i];
-		if (o.getID() < 0) {
+
+		while (i >= m_renderVs.size()) {
 			m_renderVs.emplace_back();
 			m_renderFs.emplace_back();
 		}
-
-		m_objects[i].getMesh(m_renderVs[i], m_renderFs[i]);
+		o.getMesh(m_renderVs[i], m_renderFs[i]);
 	}
 }
 
@@ -44,7 +46,12 @@ void CommonSim::renderRenderGeometry(igl::opengl::glfw::Viewer &viewer) {
 		if (o.getID() < 0) {
 
 			// Register new object
-			o.setID(viewer.append_mesh());
+			if (i > 0) {
+				o.setID(viewer.append_mesh());
+			}
+			else {
+				o.setID(0);
+			}
 
 			size_t meshIndex = viewer.mesh_index(o.getID());
 			viewer.data_list[meshIndex].show_lines = false;
@@ -55,9 +62,11 @@ void CommonSim::renderRenderGeometry(igl::opengl::glfw::Viewer &viewer) {
 
 		// Render object
 		size_t meshIndex = viewer.mesh_index(o.getID());
-
-		viewer.data_list[meshIndex].set_mesh(m_renderVs[i], m_renderFs[i]);
-		viewer.data_list[meshIndex].compute_normals();
+		if (i < m_renderVs.size())
+		{
+			viewer.data_list[meshIndex].set_mesh(m_renderVs[i], m_renderFs[i]);
+			viewer.data_list[meshIndex].compute_normals();
+		}
 
 		Eigen::MatrixXd color;
 		o.getColors(color);

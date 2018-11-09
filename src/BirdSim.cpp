@@ -1,8 +1,9 @@
 #include "BirdSim.h"
 #include "Gui.h"
 
-void BirdSim::init() {
-
+BirdSim::BirdSim(CommonSim* parent)
+: SubSimulation(parent, "Bird") 
+{
 }
 
 void BirdSim::resetMembers() {

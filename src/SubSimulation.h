@@ -14,18 +14,19 @@ using namespace std;
 class SubSimulation {
 public:
 	SubSimulation(CommonSim* parent, const char* name) 
-	: s_name(name), p_parent(parent) { init(); }
+	: s_name(name), p_parent(parent) { }
 
-	virtual void init();
 	virtual void resetMembers();
 	virtual bool advance();
 
 	virtual void updateSimulationParameters();
 	virtual void drawSimulationParameterMenu();
 
+protected:
+	CommonSim* p_parent;
+
 private:
 	std::string s_name;
-	CommonSim* p_parent;
 };
 
 #endif

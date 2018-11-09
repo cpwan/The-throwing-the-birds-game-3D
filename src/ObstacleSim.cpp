@@ -1,8 +1,9 @@
 #include "ObstacleSim.h"
 #include "Gui.h"
 
-void ObstacleSim::init() {
-
+ObstacleSim::ObstacleSim(CommonSim* parent)
+	: SubSimulation(parent, "Obstacle")
+{
 }
 
 void ObstacleSim::resetMembers() {

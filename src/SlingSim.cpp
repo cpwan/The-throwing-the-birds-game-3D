@@ -1,8 +1,11 @@
 #include "SlingSim.h"
 #include "Gui.h"
 
-void SlingSim::init() {
+#include "CommonSim.h"
 
+SlingSim::SlingSim(CommonSim* parent)
+: SubSimulation(parent, "Sling") 
+{
 }
 
 void SlingSim::resetMembers() {

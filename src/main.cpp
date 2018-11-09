@@ -1,6 +1,3 @@
-#define EIGEN_DONT_VECTORIZE
-#define EIGEN_DONT_ALIGN_STATICALLY
-#define EIGEN_DISABLE_UNALIGNED_ARRAY_ASSERT
 
 #include <igl/writeOFF.h>
 #include <thread>
@@ -26,22 +23,37 @@ class CommonGui : public Gui {
 	CommonGui() {
 
 		p_CommonSim = new CommonSim();
-        setSimulation(p_CommonSim);
 
 		// Add subsimulations
-		p_CommonSim->m_subSimulations.push_back(new SlingSim(p_CommonSim));
-		p_CommonSim->m_subSimulations.push_back(new ObstacleSim(p_CommonSim));
-		p_CommonSim->m_subSimulations.push_back(new BirdSim(p_CommonSim));
+		//p_CommonSim->m_subSimulations.push_back(new SlingSim(p_CommonSim));
+		//p_CommonSim->m_subSimulations.push_back(new ObstacleSim(p_CommonSim));
+		//p_CommonSim->m_subSimulations.push_back(new BirdSim(p_CommonSim));
 
-        // show vertex velocity instead of normal
-        callback_clicked_vertex =
-            [&](int clickedVertexIndex, int clickedObjectIndex,
-                Eigen::Vector3d &pos, Eigen::Vector3d &dir) {
-                RigidObject &o = p_CommonSim->getObjects()[clickedObjectIndex];
-                pos = o.getVertexPosition(clickedVertexIndex);
-                dir = o.getVelocity(pos);
-            };
-        start();
+		/////////////////////////////////////////////////////////////////
+		std::string path = "cube.off";
+		auto& objects = p_CommonSim->getObjects();
+		objects.push_back(RigidObject(path));
+
+		Eigen::Matrix3d color(1, 3);
+		objects.back().setPosition(Eigen::Vector3d(0.0f, 0.0f, 0.0f));
+		objects.back().setRotation(Eigen::Quaterniond::Identity());
+		color << 0.5, 0.5, 0.5;
+		objects.back().setColors(color);
+		/////////////////////////////////////////////////////////////////
+
+		setSimulation(p_CommonSim);
+
+		// show vertex velocity instead of normal
+		callback_clicked_vertex = [&](	int clickedVertexIndex,
+										int clickedObjectIndex,
+										Eigen::Vector3d &pos,
+										Eigen::Vector3d &dir) {
+			RigidObject &o = p_CommonSim->getObjects()[clickedObjectIndex];
+			pos = o.getVertexPosition(clickedVertexIndex);
+			dir = o.getVelocity(pos);
+		};
+
+		start();
     }
 
     virtual void updateSimulationParameters() override {

@@ -12,9 +12,8 @@ using namespace std;
 */
 class BirdSim : public SubSimulation {
 public:
-	BirdSim(CommonSim* parent) : SubSimulation(parent, "Bird") { }
+	BirdSim(CommonSim* parent);
 
-	virtual void init() override;
 	virtual void resetMembers() override;
 	virtual bool advance() override;
 

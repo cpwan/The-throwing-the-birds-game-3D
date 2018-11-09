@@ -1,7 +1,3 @@
-#define EIGEN_DONT_VECTORIZE
-#define EIGEN_DISABLE_UNALIGNED_ARRAY_ASSERT
-#define EIGEN_DONT_ALIGN_STATICALLY
-
 #include "Gui.h"
 #include <igl/Hit.h>
 #include <igl/project.h>
@@ -11,8 +7,8 @@
 
 void Gui::setSimulation(Simulation *sim) {
     p_simulator = new Simulator(sim);
-    p_simulator->reset();
-    p_simulator->setSimulationSpeed(m_simSpeed);
+	p_simulator->reset();
+	p_simulator->setSimulationSpeed(m_simSpeed);
 }
 
 void Gui::start() {

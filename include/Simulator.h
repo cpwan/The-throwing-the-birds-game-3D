@@ -191,14 +191,17 @@ class Simulator {
                     high_resolution_clock::now();
 
                 done = p_simulation->advance();
+				std::cout << "A" << std::endl;
 
                 if (m_recording) {
                     storeRecord();
                 }
 
+				std::cout << "B" << std::endl;
                 m_render_mutex.lock();
                 p_simulation->updateRenderGeometry();
                 m_render_mutex.unlock();
+				std::cout << "C" << std::endl;
 
                 high_resolution_clock::time_point end =
                     high_resolution_clock::now();

@@ -4,6 +4,7 @@
 
 #include <igl/edges.h>
 #include "SubSimulation.h"
+#include "RigidObject.h"
 
 using namespace std;
 
@@ -12,9 +13,8 @@ using namespace std;
  */
 class SlingSim : public SubSimulation {
    public:
-	   SlingSim(CommonSim* parent) : SubSimulation(parent, "Sling") { }
+	   SlingSim(CommonSim* parent);
 
-	   virtual void init() override;
 	   virtual void resetMembers() override;
 	   virtual bool advance() override;
 
@@ -31,7 +31,7 @@ class SlingSim : public SubSimulation {
 
    private:
     float m_custom;
-   
+	RigidObject* m_sling;
 };
 
 #endif

@@ -1,9 +1,6 @@
 #include "SubSimulation.h"
 #include "Gui.h"
 
-void SubSimulation::init() {
-
-}
 
 void SubSimulation::resetMembers()
 {

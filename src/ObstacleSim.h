@@ -12,9 +12,8 @@ using namespace std;
 */
 class ObstacleSim : public SubSimulation {
 public:
-	ObstacleSim(CommonSim* parent) : SubSimulation(parent, "Obstacle") { }
+	ObstacleSim(CommonSim* parent);
 
-	virtual void init() override;
 	virtual void resetMembers() override;
 	virtual bool advance() override;
 
