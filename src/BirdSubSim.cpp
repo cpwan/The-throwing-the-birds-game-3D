@@ -14,6 +14,10 @@ BirdSubSim::BirdSubSim(CommonSim* parent)
 	m_floor_friction = 0.05;
 	m_angle = 0.6;
 	m_initial_impluse = 20;
+	ground = -3.0;
+	groundNormal << 0, 1, -0.5;
+	groundNormal.normalize();
+	groundNormal = groundNormal.transpose();
 }
 
 void BirdSubSim::addObjects() {
@@ -116,18 +120,39 @@ bool BirdSubSim::advance(float time, float dt) {
 
 	for (int i = 0; i < V.rows(); i++) {
 		fext[i] = body->getMass() * m_gravity;
-		if (V(i, 1) < 0.0) {
-			fext[i].y() -= m_floor_stiffness * (V(i, 1));
-			fext[i].x() -= m_floor_friction * (V(i, 0));
-			fext[i].z() -= m_floor_friction * (V(i, 2));
-		}
+		//if (V(i, 1) < ground) {
+		//	fext[i].y() -= m_floor_stiffness * (V(i, 1));
+		//	fext[i].x() -= m_floor_friction * (V(i, 0));
+		//	fext[i].z() -= m_floor_friction * (V(i, 2));
+		//}
+		//else {
+		//	fext[i] = body->getMass() * m_gravity;
+		//}
 
 		fdamp[i] = m_spring.damping*m_velocities[i];
 	}
 
+	Eigen::Vector3d aPtOnContactSurface(0, ground, 0);
+
 	for (int i = 0; i < V.rows(); i++) {
 		m_velocities[i] += body->getMassInv() * dt*(fint[i] + fext[i] - fdamp[i]+ fRigidCore[i]);
+
 		V_new.row(i) = V.row(i) + dt * m_velocities[i].transpose();
+		
+		// replace <ground with contact detection, e.g. (normal|constant) dot (x,y,z,1)<0
+		if (V_new.row(i).dot(groundNormal) < ground) {
+			Eigen::Vector3d deltaV = dt * m_velocities[i].transpose();
+
+			double numerator = (aPtOnContactSurface.transpose() - V.row(i)).dot(groundNormal);
+			double denominator=	deltaV.dot(groundNormal);
+			double t = numerator / denominator;
+			Eigen::Vector3d r = deltaV * (1 - t);
+			Eigen::Vector3d fr = r - (groundNormal.dot(r))*groundNormal;
+
+			V_new.row(i) -=r.dot(groundNormal)*groundNormal + fr * m_floor_friction; //comment this line to let the bird swim horizontally
+			m_velocities[i] = m_velocities[i]- m_velocities[i].dot(groundNormal)*groundNormal;
+
+		}
 	}
 
 	body->setMesh(V_new, F);
@@ -192,6 +217,8 @@ void BirdSubSim::drawSimulationParameterMenu() {
 	ImGui::InputDouble("Bird stiffness", & m_spring.stiffness, 0, 0);
 	ImGui::InputDouble("Bird damping", &m_spring.damping, 0, 0);
 	ImGui::InputDouble("Bird angle", &m_angle, 0, 0);
+	ImGui::InputDouble("Bird init speed", &m_initial_impluse, 0, 0);
+	
 	ImGui::InputDouble("Bird rigid stiffness ratio", &spring_scale, 0, 0);
 	ImGui::InputDouble("Floor stiffness", &m_floor_stiffness, 0, 0);
 	ImGui::InputDouble("Floor friction", &m_floor_friction, 0, 0);
