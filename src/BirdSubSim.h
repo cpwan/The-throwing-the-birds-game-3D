@@ -42,7 +42,7 @@ private:
 	int m_leftFoot;
 	int m_rightFoot;
 	int m_body;
-
+	double ground;
 
 	RigidObject *body;
 	RigidObject *leftFoot;
@@ -67,6 +67,8 @@ private:
 	Eigen::MatrixXi m_Forig_init; 
 	Eigen::MatrixXd m_Vorig_rigid;
 	Eigen::MatrixXi m_Forig_rigid;
+
+	Eigen::Vector3d groundNormal;
 };
 
 #endif
