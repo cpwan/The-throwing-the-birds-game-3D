@@ -1,7 +1,8 @@
 #include "CommonSim.h"
 #include "SubSim.h"
 
-CommonSim::CommonSim() : Simulation() 
+CommonSim::CommonSim()
+	: Simulation()
 {
 }
 
@@ -10,8 +11,6 @@ void CommonSim::init() {
 	for (SubSim* subSim : m_subSims) {
 		subSim->addObjects();
 	}
-
-	m_dt = 1e-3 * 3;
 
 	reset();
 }
@@ -28,6 +27,7 @@ void CommonSim::resetMembers() {
 }
 
 void CommonSim::updateRenderGeometry() {
+	
 	for (size_t i = 0; i < m_objects.size(); i++) {
 		RigidObject &o = m_objects[i];
 
@@ -54,6 +54,7 @@ bool CommonSim::advance() {
 }
 
 void CommonSim::renderRenderGeometry(igl::opengl::glfw::Viewer &viewer) {
+	
 	for (size_t i = 0; i < m_objects.size(); i++) {
 		RigidObject &o = m_objects[i];
 		if (o.getID() < 0) {

@@ -1,6 +1,20 @@
 #include "RigidObject.h"
 
-RigidObject::RigidObject(const std::string& mesh_file, const ObjType t) {
+RigidObject::RigidObject(const std::string& mesh_file, const ObjType t) 
+	:
+m_mass(0.0),
+m_massInv(0.0),
+m_inertia(Eigen::Matrix3d::Identity()),
+m_inertiaInv(Eigen::Matrix3d::Identity()),
+m_v(Eigen::Vector3d::Zero()),
+m_w(Eigen::Vector3d::Zero()),
+m_force(Eigen::Vector3d::Zero()),
+m_torque(Eigen::Vector3d::Zero()),
+m_extend(Eigen::Vector3d::Zero()),
+m_active(false),
+m_name(""),
+m_counter(0)
+{
     findAndLoadMesh(mesh_file);
     setType(t);
     setMass(1.0);
@@ -15,6 +29,8 @@ void RigidObject::resetMembers() {
     setAngularMomentum(Eigen::Vector3d::Zero());
     resetForce();
     resetTorque();
+	m_active = true;
+	m_counter = 0;
 }
 
 void RigidObject::applyForceToCOM(const Eigen::Vector3d& f) {
@@ -115,9 +131,32 @@ void RigidObject::setTorque(const Eigen::Vector3d& t) {
     m_torque = t;
 }
 
+void RigidObject::setActive(bool active) {
+	if (m_type != ObjType::DYNAMIC) return;
+
+	m_active = active;
+}
+
+void RigidObject::setName(const char* name)
+{
+	m_name = std::string(name);
+}
+
+void RigidObject::addCounter()
+{
+	m_counter++;
+}
+
+void RigidObject::resetCounter()
+{
+	m_counter = 0;
+}
+
 void RigidObject::resetForce() { m_force.setZero(); };
 
 void RigidObject::resetTorque() { m_torque.setZero(); };
+
+void RigidObject::setExtend(const Eigen::Vector3d& e) { m_extend = e; }
 
 double RigidObject::getMass() const { return m_mass; }
 
@@ -153,5 +192,17 @@ Eigen::Vector3d RigidObject::getAngularVelocity() const { return m_w; }
 Eigen::Vector3d RigidObject::getForce() const { return m_force; }
 
 Eigen::Vector3d RigidObject::getTorque() const { return m_torque; }
+
+Eigen::Vector3d RigidObject::getExtend() const { return m_extend; }
+
+bool RigidObject::isActive() const { return(m_active && m_type == ObjType::DYNAMIC); }
+
+std::string RigidObject::getName() const {
+	return(m_name);
+}
+
+bool RigidObject::exceededCounter(int32_t thres) const {
+	return(m_counter > thres);
+}
 
 #pragma endregion GettersAndSetters

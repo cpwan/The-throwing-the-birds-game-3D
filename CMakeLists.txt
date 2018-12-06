@@ -27,4 +27,6 @@ if (NOT LIBIGL_FOUND)
     find_package(LIBIGL REQUIRED QUIET)
 endif()
 
+message([STATUS] ${CMAKE_INSTALL_PREFIX})
+
 add_subdirectory(src)

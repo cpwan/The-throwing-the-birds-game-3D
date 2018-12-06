@@ -32,6 +32,11 @@ class RigidObject : public BaseObject {
     void setTorque(const Eigen::Vector3d& t);
     void resetForce();
     void resetTorque();
+	void setExtend(const Eigen::Vector3d& e);
+	void setActive(bool active);
+	void setName(const char* name);
+	void addCounter();
+	void resetCounter();
 
     double getMass() const;
     double getMassInv() const;
@@ -46,6 +51,10 @@ class RigidObject : public BaseObject {
     Eigen::Vector3d getAngularVelocity() const;
     Eigen::Vector3d getForce() const;
     Eigen::Vector3d getTorque() const;
+	Eigen::Vector3d getExtend() const;
+	bool isActive() const;
+	std::string getName() const;
+	bool exceededCounter(int32_t thres) const;
 #pragma endregion GettersAndSetters
 
    protected:
@@ -62,6 +71,11 @@ class RigidObject : public BaseObject {
 
     Eigen::Vector3d m_force;   // Force on body
     Eigen::Vector3d m_torque;  // Torque on body
+
+	Eigen::Vector3d m_extend; // Extend in local space
+	bool m_active; // Whether object physically active
+	std::string m_name; // Identifier
+	int32_t m_counter; // Activity counter
 };
 
 #endif

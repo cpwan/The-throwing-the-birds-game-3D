@@ -7,15 +7,14 @@
 #include "ObstacleSubSim.h"
 #include "SlingSubSim.h"
 
-
 class CommonGui : public Gui {
 public:
-	float m_dt = 1e-3 * 3;
+	float m_dt = 1e-4 * 10;
 
 	CommonSim *p_CollisionSim = NULL;
 
 	CommonGui() {
-
+		
 		// Initialise all sub-simulations
 		p_CollisionSim = new CommonSim();
 		p_CollisionSim->addSubSim<SlingSubSim>();
@@ -35,6 +34,7 @@ public:
 		};
 		start();
 	}
+	virtual ~CommonGui() {}
 
 	virtual void updateSimulationParameters() override {
 		p_CollisionSim->setTimestep(m_dt);
@@ -49,7 +49,7 @@ public:
 
 	virtual void drawSimulationParameterMenu() override {
 		ImGui::Text("Global");
-		ImGui::InputFloat("dt", &m_dt, 0, 0);
+		ImGui::InputFloat("dt", &m_dt, 0, 0, 5);
 
 		// Draw parameters of sub-simulations
 		if (p_CollisionSim) {

@@ -27,6 +27,8 @@ enum class ObjType { STATIC, DYNAMIC };
 
 class BaseObject {
    public:
+	   BaseObject();
+
     bool loadMesh(const std::string& path);
     void setMesh(const Eigen::MatrixXd& V, const Eigen::MatrixXi& F);
 

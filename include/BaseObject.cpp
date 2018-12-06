@@ -4,6 +4,19 @@
 #include <igl/readOBJ.h>
 #include <igl/readOFF.h>
 
+
+BaseObject::BaseObject()
+	:
+ m_id(-1),
+ m_type(ObjType::STATIC),
+ m_scale(1.0),
+ m_position(Eigen::Vector3d::Zero()),
+ m_quat(Eigen::Quaterniond::Identity()),
+ m_rot(Eigen::Matrix3d::Identity())
+{
+
+}
+
 bool BaseObject::loadMesh(const std::string& path) {
     bool succ = false;
 
