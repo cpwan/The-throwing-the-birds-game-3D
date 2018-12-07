@@ -13,9 +13,48 @@ Contact::Contact()
 :	ours(nullptr),
 	theirs(nullptr),
 	location(Eigen::Vector3d::Zero()),
-	normal(Eigen::Vector3d::Zero()),
+	normal(Eigen::Vector3d::Zero())
+{
+}
+
+MacroContact::MacroContact()
+:	Contact(),
 	time(0.0)
 {
+}
+
+NodeContact::NodeContact(const Contact& Contact, int32_t iterations)
+:	Contact(Contact),
+	iterations(iterations)
+{
+}
+
+MicroContact::MicroContact(const Contact& Contact, double coeff)
+:	Contact(Contact),
+	coeff(coeff)
+{
+}
+
+double MicroContact::computeResponse() const
+{
+	return(computeSpeed() * coeff);
+}
+
+double Contact::computeSpeedAndSlide(Eigen::Vector3d& slide) const
+{
+	const Eigen::Vector3d ourVelocity = ours->getPointVelocity(location);
+	const Eigen::Vector3d theirVelocity = theirs->getPointVelocity(location);
+	const Eigen::Vector3d relative = theirVelocity - ourVelocity;
+	const double speed = relative.dot(normal);
+	slide = relative - normal * speed;
+	return(speed);
+}
+
+double Contact::computeSpeed() const
+{
+	const Eigen::Vector3d ourVelocity = ours->getPointVelocity(location);
+	const Eigen::Vector3d theirVelocity = theirs->getPointVelocity(location);
+	return((theirVelocity - ourVelocity).dot(normal));
 }
 
 Interval::Interval(const Eigen::Vector3d& f)
@@ -418,14 +457,14 @@ bool BlockObstacle::hitTest(const BlockObstacle* other, std::vector<HitResult>& 
 	return(!hits.empty());
 }
 
-double BlockObstacle::hitSweepTime(BlockObstacle* other, double dt, double min, std::vector<Contact>& contacts)
+double BlockObstacle::hitSweepTime(BlockObstacle* other, double dt, std::vector<MacroContact>& contacts)
 {
 	// Remember object states
 	const Eigen::Vector3d prevOurPosition = getPosition();
 	const Eigen::Quaterniond prevOurRotation = getRotation();
 	const Eigen::Vector3d prevTheirPosition = other->getPosition();
 	const Eigen::Quaterniond prevTheirRotation = other->getRotation();
-
+	
 	// Move both objects by given timestep
 	move(dt);
 	other->move(dt);
@@ -435,30 +474,33 @@ double BlockObstacle::hitSweepTime(BlockObstacle* other, double dt, double min, 
 	{
 		for (const HitResult& hit : hits)
 		{
+			// Create contact estimate
+			MacroContact contact;
+			contact.ours = this;
+			contact.theirs = other;
+			contact.location = hit.location;
+			contact.normal = hit.normal;
+			contact.time = dt;
+
 			//std::cout << getName() << std::endl;
 			//std::cout << hit.normal.x() << " " << hit.normal.y() << " " << hit.normal.z() << " " << hit.depth << std::endl;
 			// Estimate time spent inside the other object using the velocity of the hitpoint
-			const Eigen::Vector3d ourVelocity = getPointVelocity(hit.insider);
-			const Eigen::Vector3d theirVelocity = other->getPointVelocity(hit.insider);
-			const double normalSpeed = (theirVelocity - ourVelocity).dot(hit.normal);
+			const double normalSpeed = contact.computeSpeed();
 
-			// Only generate contact if velocity is pointing towards surface
-			if (normalSpeed > DBL_EPSILON)
+			// Negative if diverging, still need to treat it as a contact in case of multicollision
+			if (normalSpeed > SMALL_NUMBER)
 			{
-				// Create contact estimate
-				Contact contact;
-				contact.ours = this;
-				contact.theirs = other;
-				contact.location = hit.location;
-				contact.normal = hit.normal;
-
-				// Compute time estimate (negative if already inside object to begin with)
+				// Compute time estimate, negative if already inside object from the start
 				contact.time = std::max(dt - hit.depth / normalSpeed, 0.0);
-				hitTime = std::min(hitTime, std::max(contact.time, min));
-
-				// Add to output
-				contacts.push_back(contact);
 			}
+
+			// Update contact times
+			minTime(contact.time);
+			other->minTime(contact.time);
+			hitTime = std::min(hitTime, contact.time);
+
+			// Add to output
+			contacts.push_back(contact);
 		}
 	}
 	
@@ -471,7 +513,7 @@ double BlockObstacle::hitSweepTime(BlockObstacle* other, double dt, double min, 
 	return(hitTime);
 }
 
-void BlockObstacle::resolvePenetration(BlockObstacle* other)
+void BlockObstacle::resolvePenetration(BlockObstacle* other, double factor)
 {
 	std::vector<HitResult> hits;
 	if (hitTest(other, hits))
@@ -484,11 +526,24 @@ void BlockObstacle::resolvePenetration(BlockObstacle* other)
 			if (hit.depth > maxDepth)
 			{
 				maxDepth = hit.depth;
-				correction = hit.normal * maxDepth;
+				correction = hit.normal * maxDepth * factor;
 			}
 		}
 
-		setPosition(getPosition() + correction);
+		// Divide displacement if possible
+		if (isActive() && other->isActive())
+		{
+			setPosition(getPosition() + correction * 0.5);
+			other->setPosition(other->getPosition() - correction * 0.5);
+		}
+		else if (!other->isActive())
+		{
+			setPosition(getPosition() + correction);
+		}
+		else
+		{
+			other->setPosition(other->getPosition() - correction);
+		}
 	}
 }
 
@@ -503,58 +558,73 @@ bool BlockObstacle::isMoving(double threshold) const
 	const double change = sqrt(
 		getLinearVelocity().squaredNorm() +
 		getAngularVelocity().squaredNorm());
-	return(change < threshold);
+	return(change > threshold);
 }
 
-void BlockObstacle::applyImpulseMulti(const Eigen::Vector3d& relative, BlockObstacle* other, double coeff, const Eigen::Vector3d& normal, const Eigen::Vector3d& hitpoint)
+void BlockObstacle::applyImpulseMulti(double relative, BlockObstacle* other, const Eigen::Vector3d& normal, const Eigen::Vector3d& hitpoint)
 {
-	// Compute own attributes
+	if (relative > 0.0) return;
+
+	// Compute response
+	Eigen::Vector3d ownAngular, ownImpulse;
+	computeImpulse(normal, hitpoint, ownAngular, ownImpulse);
+
+	Eigen::Vector3d theirAngular, theirImpulse;
+	other->computeImpulse(-normal, hitpoint, theirAngular, theirImpulse);
+
+	// Compute impulse magnitude
+	const double divisor = normal.dot(ownImpulse - theirImpulse);
+	const double j = relative / divisor;
+	
+	// Apply to both
+	applyImpulse(j, normal, ownAngular);
+	other->applyImpulse(j, -normal, theirAngular);
+}
+
+void BlockObstacle::applyImpulseSingle(double relative, const Eigen::Vector3d& normal, const Eigen::Vector3d& hitpoint)
+{
+	if (relative > 0.0) return;
+
+	// Compute response
+	Eigen::Vector3d ownAngular, ownImpulse;
+	computeImpulse(normal, hitpoint, ownAngular, ownImpulse);
+
+	// Compute impulse magnitude
+	const double ownInvMass = getMassInv();
+	const double divisor = normal.dot(ownImpulse);
+	const double j = relative / divisor;
+
+	// Apply to own
+	applyImpulse(j, normal, ownAngular);
+}
+
+void BlockObstacle::applyImpulse(double j, const Eigen::Vector3d& normal, const Eigen::Vector3d& angular)
+{
+	const double invMass = getMassInv();
+	setAngularVelocity(getAngularVelocity() - j * angular);
+	setLinearVelocity(getLinearVelocity() - j * invMass * normal);
+}
+
+void BlockObstacle::computeImpulse(const Eigen::Vector3d& normal, const Eigen::Vector3d& hitpoint, Eigen::Vector3d& angular, Eigen::Vector3d& impulse) const
+{
+	const Eigen::Vector3d center = getPosition();
+	const Eigen::Vector3d radius = hitpoint - center;
+	const double invMass = getMassInv();
+
+	angular = getInertiaInvWorld() * radius.cross(normal);
+	impulse = angular.cross(radius) + normal * invMass;
+}
+
+
+void BlockObstacle::computeImpulse(BlockObstacle* other, const Eigen::Vector3d& otherHitpoint, const Eigen::Vector3d& normal, const Eigen::Vector3d& hitpoint, Eigen::Vector3d& impulse) const
+{
 	const Eigen::Vector3d ownCenter = getPosition();
 	const Eigen::Vector3d ownRadius = hitpoint - ownCenter;
-	const double ownInvMass = getMassInv();
 
-	// Compute own inertia (transform to local, inerta, transform to world)
-	const Eigen::Vector3d ownAngular = getInertiaInvWorld() * ownRadius.cross(normal);
-	const Eigen::Vector3d ownInertia = ownAngular.cross(ownRadius);
-
-	// Compute their attributes
-	const Eigen::Vector3d theirCenter = other->getPosition();
+	const Eigen::Vector3d theirCenter = getPosition();
 	const Eigen::Vector3d theirRadius = hitpoint - theirCenter;
-	const double theirInvMass = other->getMassInv();
+	const double invMass = other->getMassInv();
 
-	// Compute their inertia (transform to local, inerta, transform to world)
-	const Eigen::Vector3d theirAngular = other->getInertiaInvWorld() * theirRadius.cross(normal);
-	const Eigen::Vector3d theirInertia = theirAngular.cross(theirRadius);
-
-	// Compute impulse magnitude
-	const double divisor = ownInvMass + theirInvMass + normal.dot(ownInertia + theirInertia);
-	const double j = coeff * relative.dot(normal) / divisor;
-	
-	// Apply to own
-	setAngularVelocity(getAngularVelocity() - j * ownAngular);
-	setLinearVelocity(getLinearVelocity() - j * ownInvMass * normal);
-
-	// Apply to their
-	other->setAngularVelocity(other->getAngularVelocity() + j * theirAngular);
-	other->setLinearVelocity(other->getLinearVelocity() + j * theirInvMass * normal);
-}
-
-void BlockObstacle::applyImpulseSingle(const Eigen::Vector3d& relative, double coeff, const Eigen::Vector3d& normal, const Eigen::Vector3d& hitpoint)
-{
-	// Compute own attributes
-	const Eigen::Vector3d ownCenter = getPosition();
-	const Eigen::Vector3d ownRadius = hitpoint - ownCenter;
-	const double ownInvMass = getMassInv();
-	
-	// Compute own inertia (transform to local, inerta, transform to world)
-	const Eigen::Vector3d ownAngular = getInertiaInvWorld() * ownRadius.cross(normal);
-	const Eigen::Vector3d ownInertia = ownAngular.cross(ownRadius);
-
-	// Compute impulse magnitude
-	const double divisor = ownInvMass + normal.dot(ownInertia);
-	const double j = coeff * relative.dot(normal) / divisor;
-
-	// Apply to own
-	setAngularVelocity(getAngularVelocity() - j * ownAngular);
-	setLinearVelocity(getLinearVelocity() - j * ownInvMass * normal);
+	const Eigen::Vector3d angular = other->getInertiaInvWorld() * ownRadius.cross(normal);
+	impulse = angular.cross(theirRadius) + normal * invMass;
 }

@@ -2,9 +2,20 @@
 #include "Gui.h"
 
 ObstacleSubSim::ObstacleSubSim(CommonSim* parent)
-	: SubSim(parent, "Obstacle"), m_friction(0.4), m_initial(80.0), m_elast(0.5), m_gravity(981.0)
+:	SubSim(parent, "Obstacle"), 
+	m_friction(0.4), 
+	m_initial(80.0), 
+	m_elast(0.5),
+	m_gravity(981.0),
+	m_iterativeResolution(false),
+	m_collisionIterations(5),
+	m_multiContactResolution(MULTI_CONTACT_SEQ),
+	m_splitTimestep(true),
+	m_minDtRatio(0.2),
+	m_sleepMode(true),
+	m_sleepThreshold(1.0),
+	m_speculativeContacts(false)
 {
-
 }
 
 void ObstacleSubSim::addObjects() {
@@ -33,14 +44,14 @@ void ObstacleSubSim::resetMembers() {
 
 	RigidObject& obstacleA = getObject(m_obstacleA);
 	obstacleA.setPosition(Eigen::Vector3d(0, 30, 30));
-	obstacleA.setLinearVelocity(Eigen::Vector3d(0, 200, 0));
+	obstacleA.setLinearVelocity(Eigen::Vector3d(0, 0, 0));
 	//obstacleA.setAngularVelocity(Eigen::Vector3d(2, 0, 8));
 	//obstacleA.setRotation(	Eigen::AngleAxisd(M_PI / 4, Eigen::Vector3d::UnitX()) *
 	//						Eigen::AngleAxisd(0.0 / 4, Eigen::Vector3d::UnitY()));
 
 	RigidObject& obstacleB = getObject(m_obstacleB);
 	obstacleB.setPosition(Eigen::Vector3d(0, 40, 30));
-	obstacleB.setLinearVelocity(Eigen::Vector3d(0, -200, 0));
+	obstacleB.setLinearVelocity(Eigen::Vector3d(0, 0, 0));
 	//obstacleB.setRotation(Eigen::AngleAxisd(M_PI / 4, Eigen::Vector3d::UnitZ()) *
 	//					Eigen::AngleAxisd(0 / 4, Eigen::Vector3d::UnitX()) *
 	//					Eigen::AngleAxisd(0.0 / 2, Eigen::Vector3d::UnitY()));
@@ -52,8 +63,13 @@ void ObstacleSubSim::resetMembers() {
 
 
 	RigidObject& obstacleD = getObject(m_obstacleD);
-	obstacleD.setPosition(Eigen::Vector3d(20, -1, 30));
-	obstacleD.setLinearVelocity(Eigen::Vector3d(0, 0, 0));
+	obstacleD.setPosition(Eigen::Vector3d(20, 5, 30));
+	obstacleD.setLinearVelocity(Eigen::Vector3d(200, -500, 0));
+	obstacleD.setAngularVelocity(Eigen::Vector3d(0, 0, 0));
+	obstacleD.setRotation(Eigen::AngleAxisd(M_PI / 8, Eigen::Vector3d::UnitZ()) *
+						Eigen::AngleAxisd(0.0 / 4, Eigen::Vector3d::UnitX()) *
+						Eigen::AngleAxisd(0.0 / 2, Eigen::Vector3d::UnitY()));
+
 
 	RigidObject& obstacleE = getObject(m_obstacleE);
 	obstacleE.setPosition(Eigen::Vector3d(2, 10, 30));
@@ -65,7 +81,7 @@ void ObstacleSubSim::resetMembers() {
 	RigidObject& obstacleF = getObject(m_obstacleF);
 	obstacleF.setPosition(Eigen::Vector3d(-2, 10, 30));
 	//obstacleF.setAngularVelocity(Eigen::Vector3d(20, 0, 8));
-	obstacleF.setLinearVelocity(Eigen::Vector3d(0, 200, 0));
+	//obstacleF.setLinearVelocity(Eigen::Vector3d(0, 200, 0));
 	obstacleF.setRotation(	Eigen::AngleAxisd(0.0 / 4, Eigen::Vector3d::UnitZ()) *
 							Eigen::AngleAxisd(M_PI / 2, Eigen::Vector3d::UnitX()) *
 							Eigen::AngleAxisd(0.0 / 2, Eigen::Vector3d::UnitY()));
@@ -93,86 +109,133 @@ bool ObstacleSubSim::advance(float time, float dt) {
 			const Eigen::Vector3d gravity = Eigen::Vector3d(0, -m_gravity, 0);
 			obstacle->setForce(gravity);
 
+			const double drag = 0.001;
+			obstacle->applyForceToCOM(-obstacle->getLinearVelocity() * drag);
+			obstacle->applyTorque(-obstacle->getAngularVelocity() * drag);
+
 			// Move obstacle one timestep forward
 			obstacle->setLinearVelocity(obstacle->getLinearVelocity() + obstacle->getForce() * dt);
 			obstacle->setAngularVelocity(obstacle->getAngularVelocity() + obstacle->getTorque() * dt);
 		}
 	}
-
-	// Wake up everyone
-	for (BlockObstacle* obstacle : obstacles)
+	
+	// Perform collision iterations
+	int32_t iterations = collide(obstacles, dt);
+	//std::cout << "Iterations: " << iterations << std::endl;
+		
+	if (m_sleepMode)
 	{
-		if (!obstacle->isActive())
+		// Put blocks to sleep that didn't move for a long time
+		for (BlockObstacle* obstacle : obstacles)
 		{
-			const double change = sqrt(
-				obstacle->getLinearVelocity().squaredNorm() +
-				obstacle->getAngularVelocity().squaredNorm());
-			//std::cout << change << std::endl;
-
-			//if (change > 2.0)
+			if (obstacle->isActive())
 			{
-				obstacle->setActive(true);
-				obstacle->resetCounter();
+				if (obstacle->isMoving(m_sleepThreshold))
+				{
+					obstacle->resetCounter();
+				}
+				else
+				{
+					// Put to sleep if inactive for too many frames
+					obstacle->addCounter();
+					if (obstacle->exceededCounter(60))
+					{
+						// Reset reciprocal movement
+						obstacle->setLinearVelocity(Eigen::Vector3d::Zero());
+						obstacle->setAngularVelocity(Eigen::Vector3d::Zero());
+
+						obstacle->setActive(false);
+						obstacle->resetCounter();
+					}
+				}
+			}
+			else
+			{
+				// Wake up if an external force has moved this obstacle
+				if (obstacle->isMoving(m_sleepThreshold / 2))
+				{
+					obstacle->setActive(true);
+				}
 			}
 		}
 	}
-
-	// Perform collision iterations
-	int32_t iterations = collide(obstacles, dt, 0);
-	std::cout << "Iterations: " << iterations << std::endl;
-
+	
 	return(false);
 }
 
 
-int32_t ObstacleSubSim::collide(const std::vector<BlockObstacle*>& obstacles, float dt, int32_t iteration)
+int32_t ObstacleSubSim::collide(const std::vector<BlockObstacle*>& obstacles, float dt)
 {
 	BlockObstacle* collisionMarker = (BlockObstacle*)&getObject(m_marker);
 	const double thres = 0.0005;
 
 	// Terminate once whole timestep has been executed
 	double hitTime = dt;
-	if (hitTime < DBL_EPSILON)
+	if (hitTime < SMALL_NUMBER)
 	{
 		return(0);
 	}
 
-	// Just apply full timestep on too many iterations to prevent stuttering
-	double minHitTime = 0.0;
-	if (iteration > 5)
+	// Always progress to prevent infinite recursion
+	double minHitTime = m_splitTimestep ? std::max(dt * m_minDtRatio, thres) : dt;
+	for (BlockObstacle* obstacle : obstacles)
 	{
-		std::cerr << "Terminated collision iteration early." << std::endl;
-		minHitTime = dt;
+		obstacle->setTime(dt);
 	}
 	
 	// Get all possible contact points
-	std::vector<Contact> contacts;
+	std::vector<MacroContact> contacts;
 	for (BlockObstacle* obstacle : obstacles)
 	{
 		for (BlockObstacle* other : obstacles)
 		{
-			// Estimate how soon obstacles are gonna hit if active
 			if (obstacle->isHitActive(other))
 			{
-				//std::cout << obstacle->getName() << " vs " << other->getName() << std::endl;
-				// Hitsweep (using result from earlier iterations automatically minimises the hitTime)
-				hitTime = obstacle->hitSweepTime(other, hitTime, minHitTime, contacts);
+				// Estimate how soon obstacles are gonna hit if active
+				const double time = obstacle->hitSweepTime(other, dt, contacts);
+
+				// Make sure hitTime doesn't go below minimal movement
+				hitTime = std::max(std::min(time, hitTime), minHitTime);
 			}
 		}
 	}
-	
+
 	// Perform actual move
 	for (BlockObstacle* obstacle : obstacles)
 	{
 		if (obstacle->isActive())
 		{
-			obstacle->move(hitTime);
+			if (m_speculativeContacts)
+			{
+				// Use obstacle collision time to prevent penetration, however secondary motion will get lost!
+				const double time = std::min(hitTime, obstacle->getTime());
+				obstacle->move(time);
+
+				// Speculative contacts see
+				// https://wildbunny.co.uk/blog/2011/03/25/speculative-contacts-an-continuous-collision-engine-approach-part-1/
+			}
+			else
+			{
+				obstacle->move(hitTime);
+			}
+		}
+	}
+
+	// Resolve penetrations
+	for (const Contact& contact : contacts)
+	{
+		if (dt > SMALL_NUMBER)
+		{
+			// Make sure to resolve penetrations smoothly in case of wedging. 
+			// Be more careful the smaller the timestep. TODO: Dicrease depending on number of connected contacts
+			const double smoothing = (hitTime / dt) * 0.5;
+			contact.ours->resolvePenetration(contact.theirs, smoothing);
 		}
 	}
 
 	// Only regard earliest contacts
-	std::vector<Contact> hits;
-	for (const Contact& contact : contacts)
+	std::vector<MacroContact> hits;
+	for (const MacroContact& contact : contacts)
 	{
 		// Make sure simultaneous contacts are executed
 		if (contact.time < hitTime + thres)
@@ -181,19 +244,17 @@ int32_t ObstacleSubSim::collide(const std::vector<BlockObstacle*>& obstacles, fl
 		}
 	}
 
-	if (!hits.empty())
-	{
-		std::cout << "Hits generated: " << hits.size() << std::endl;
-	}
-
-	// Look for duplicates
-	std::vector<Contact> responses;
-	for (Contact& hit : hits)
+	// Sort contacts by time for added stability
+	std::sort(hits.begin(), hits.end(), [](const MacroContact& a, const MacroContact& b)->bool {return(a.time < b.time); });
+	
+	// Look for and merge duplicates
+	std::vector<MacroContact> responses;
+	for (MacroContact& hit : hits)
 	{
 		// Already spent duplicates get reset to null
 		if(hit.ours)
 		{
-			Contact response;
+			MacroContact response;
 			response.ours = hit.ours;
 			response.theirs = hit.theirs;
 			response.location = Eigen::Vector3d::Zero();
@@ -201,9 +262,9 @@ int32_t ObstacleSubSim::collide(const std::vector<BlockObstacle*>& obstacles, fl
 
 			// Compute average between all hits on the same objects, weight earlier hits stronger
 			double weight = 0.0;
-			for (Contact& other : hits)
+			for (MacroContact& other : hits)
 			{
-				const double earliness = (hitTime / std::max(response.time, thres));
+				const double earliness = (std::max(hitTime, thres) / std::max(response.time, thres));
 				const double hitWeight = earliness * earliness;
 				if (other.ours == response.ours && other.theirs == response.theirs)
 				{
@@ -224,8 +285,8 @@ int32_t ObstacleSubSim::collide(const std::vector<BlockObstacle*>& obstacles, fl
 			}
 
 			if (weight > thres)
-			{			
-				// normalize
+			{
+				// Get final weighted average
 				response.location /= weight;
 				response.normal /= weight;
 
@@ -236,62 +297,273 @@ int32_t ObstacleSubSim::collide(const std::vector<BlockObstacle*>& obstacles, fl
 		}
 	}
 
-	// Resolve contacts
-	for (const Contact& response : responses)
+	if (m_iterativeResolution)
 	{
-		// Compute contact velocity
-		const Eigen::Vector3d ownVelocity = response.ours->getPointVelocity(response.location);
-		const Eigen::Vector3d theirVelocity = response.theirs->getPointVelocity(response.location);
-		const Eigen::Vector3d relative = ownVelocity - theirVelocity;
-
-		// Collision response
-		response.ours->applyImpulseMulti(relative, response.theirs, 1.0 + m_elast, response.normal, response.location);
-		collisionMarker->setPosition(response.location);
-
-		// Friction response
-		if (m_friction > 0.0)
+		// Create leave nodes
+		std::vector<std::vector<NodeContact>> leaves;
+		for (BlockObstacle* obstacle : obstacles)
 		{
-			// Get slide direction for friction
-			const Eigen::Vector3d project = relative - response.normal * response.normal.dot(relative);
-			const double slide = project.norm();
-			if (slide > SMALL_NUMBER)
+			// In this case static blocks are not considered
+			if (obstacle->isActive())
 			{
-				// Apply friction against slide direction
-				response.ours->applyImpulseMulti(relative, response.theirs, m_friction, project / -slide, response.location);
+				std::vector<NodeContact> leaf;
+				for (const MacroContact& response : responses)
+				{
+					// Create microcontacts fo all connected
+					if (response.ours == obstacle || response.theirs == obstacle)
+					{
+						NodeContact contact = NodeContact(response, m_collisionIterations);
+
+						// Flip if receiver
+						if (response.theirs == obstacle)
+						{
+							contact.normal = -contact.normal;
+							contact.theirs = contact.ours;
+							contact.ours = obstacle;
+						}
+
+						leaf.push_back(contact);
+					}
+				}
+				leaves.push_back(leaf);
 			}
 		}
-	}
 
-	// Resolve penetrations
-	for (const Contact& response : responses)
-	{
-		response.ours->resolvePenetration(response.theirs);
+		// Sort leaves by number of connections
+		std::sort(leaves.begin(), leaves.end(), [](const auto& a, const auto& b)->bool {return(a.size() < b.size()); });
 
-		if (response.time < thres)
+		if (!leaves.empty())
 		{
-			// Put to sleep if staying in place
-			if (response.ours->exceededCounter(2) && !response.ours->isMoving(2.0))
-			{
-				response.ours->setActive(false);
-			}
-
-			response.ours->addCounter();
+			// Resolve contacts
+			resolve(leaves);
 		}
-	}
-
-	// Notify how many iterations have been spent with hardly any progress
-	if (hitTime < thres)
-	{
-		iteration++;
 	}
 	else
 	{
-		// Reset once things get moving again
-		iteration = 0;
+		// Compute all contacts at once
+		std::vector<MicroContact> leaves;
+		for (const MacroContact& response : responses)
+		{
+			addNode(response, leaves);
+		}
+		resolve(leaves);
 	}
-
+	
 	// Recursion
-	return(collide(obstacles, dt - hitTime, iteration) + 1);
+	return(collide(obstacles, dt - hitTime) + 1);
+}
+
+
+bool ObstacleSubSim::addNode(const Contact& contact, std::vector<MicroContact>& out)
+{
+	// Ignore diverging contacts
+	const double speed = contact.computeSpeed();
+	if (speed > SMALL_NUMBER)
+	{
+		// Impact response
+		Eigen::Vector3d slide;
+		const double speed = contact.computeSpeedAndSlide(slide);
+		out.push_back(MicroContact(contact, (1.0 + m_elast)));
+
+		// Friction is equivalent to an impulse response with elasticity < 1
+		if (m_friction > SMALL_NUMBER)
+		{
+			const double norm = slide.norm();
+			if (norm > SMALL_NUMBER)
+			{
+				// Apply friction against slide direction
+				out.push_back(MicroContact(contact, m_friction));
+				out.back().normal = slide / norm;
+			}
+		}
+
+		return(true);
+	}
+	return(false);
+}
+
+void ObstacleSubSim::resolve(std::vector<std::vector<NodeContact>>& leaves)
+{
+	// Keep iterating until all contacts have been resolved a sufficient amount of times
+	bool madeContact;
+	do
+	{
+		madeContact = false;
+		for (std::vector<NodeContact>& leaf : leaves)
+		{
+			std::vector<MicroContact> contacts;
+			for (NodeContact& node : leaf)
+			{
+				// Can stop after a given amount of iterations
+				if (node.iterations > 0)
+				{
+					if (addNode(node, contacts))
+					{
+						// Remember how many iterations have been executed on this node
+						node.iterations--;
+					}
+				}
+			}
+
+			// Resolve if any contacts were found
+			if (!contacts.empty())
+			{
+				resolve(contacts);
+				madeContact = true;
+			}
+		}
+	} while (madeContact);
+}
+
+void ObstacleSubSim::resolve(const std::vector<MicroContact>& contacts)
+{
+	if (m_multiContactResolution == MULTI_CONTACT_OFF)
+	{
+		for (const MicroContact& contact : contacts)
+		{
+			const double speed = contact.computeResponse();
+			contact.ours->applyImpulseMulti(-speed, contact.theirs, contact.normal, contact.location);
+		}
+	}
+	else
+	{
+		const int32_t n = contacts.size();
+		if (n > 0)
+		{
+			// Compute multicontact impulses
+			Eigen::VectorXd b = Eigen::VectorXd(n);
+			Eigen::MatrixXd A = Eigen::MatrixXd(n, n);
+			std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> angulars(n);
+			for (int i = 0; i < n; i++)
+			{
+				const MicroContact& ci = contacts[i];
+				auto& angular = angulars[i];
+
+				b[i] = ci.computeResponse();
+				for (int j = 0; j < n; j++)
+				{
+					const Contact& cj = contacts[j];
+					Eigen::Vector3d ownImpulse, theirImpulse;
+					if (j == i)
+					{
+						// Compute diagonal, cache angular for later
+						ci.ours->computeImpulse(ci.normal, ci.location, angular.first, ownImpulse);
+						ci.theirs->computeImpulse(-ci.normal, ci.location, angular.second, theirImpulse);
+					}
+					else
+					{
+						// Compute non-diagonal
+						cj.ours->computeImpulse(ci.ours, ci.location, cj.normal, cj.location, ownImpulse);
+						cj.theirs->computeImpulse(ci.theirs, ci.location, -cj.normal, cj.location, theirImpulse);
+					}
+
+					// Compute impulse magnitude
+					A(i, j) = ci.normal.dot(ownImpulse - theirImpulse);
+				}
+			}
+
+			// Compute the responses sequentially as a good first guess
+			Eigen::VectorXd x = Eigen::VectorXd(n);
+			for (int i = 0; i < n; i++)
+			{
+				x(i) = b[i] / A(i,i);
+			}
+
+			// Make sure A is psd
+			if (Eigen::LLT<Eigen::MatrixXd>(A).info() != Eigen::NumericalIssue)
+			{
+				if (m_multiContactResolution == MULTI_CONTACT_LCP)
+				{
+					Eigen::VectorXd rx = x;
+					for(int k = 0; k < 20; k++)
+					{
+						for (int i = 0; i < n; i++)
+						{
+							double sum = b(i);
+							for (int j = 0; j < n; j++)
+							{
+								if (i != j)
+								{
+									sum = sum - (A(i, j) * x(j));
+								}
+							}
+							const double d = A(i, i);
+							if (d > SMALL_NUMBER)
+							{
+								x(i) = sum / d;
+							}
+							else
+							{
+								x(i) = 0.0f;
+							}
+						}					}
+					x = x.cwiseMax(0.0);
+
+					const double diff = (rx - x).norm();
+					if (diff > SMALL_NUMBER)
+					{
+						{
+							const Eigen::VectorXd w = A * rx + b;
+							const double energy = w.dot(rx);
+							std::cout << "---BEFORE---" << std::endl;
+							std::cout << "Energy: " << energy << " | js: ";
+							for (int i = 0; i < n; i++)
+							{
+								std::cout << rx(i) << " ";
+							}
+							std::cout << " | ws: ";
+							for (int i = 0; i < n; i++)
+							{
+								std::cout << w(i) << " ";
+							}
+							std::cout << std::endl;
+							{
+								std::cout << "---AFTER---" << std::endl;
+								const Eigen::VectorXd w = A * x + b;
+								const double energy = w.dot(x);
+								std::cout << "Energy: " << energy << " | js: ";
+								for (int i = 0; i < n; i++)
+								{
+									std::cout << x(i) << " ";
+								}
+								std::cout << " | ws: ";
+								for (int i = 0; i < n; i++)
+								{
+									std::cout << w(i) << " ";
+								}
+								std::cout << std::endl;
+							}
+						}
+					}
+
+					/*
+					// Compute impulse magnitudes
+					const double lam = 1.0;
+					for (int k = 0; k < 500; k++)
+					{
+						const Eigen::VectorXd r = A * x + b;
+						for (int i = 0; i < n; i++)
+						{
+							x(i) = std::max(0.0, x(i) - lam * r(i) / A(i,i));
+						}
+					}
+
+					*/
+				}
+			}
+
+			// Apply computed impulse magnitude
+			for (int i = 0; i < n; i++)
+			{
+				const Contact& c = contacts[i];
+				const auto& angular = angulars[i];
+
+				// Apply to contact
+				c.ours->applyImpulse(-x(i), c.normal, angular.first);
+				c.theirs->applyImpulse(-x(i), -c.normal, angular.second);
+			}
+		}
+	}
 }
 
 void ObstacleSubSim::drawSimulationParameterMenu() {
@@ -301,6 +573,29 @@ void ObstacleSubSim::drawSimulationParameterMenu() {
 	ImGui::InputDouble("Initial speed", &m_initial, 0, 0);
 	ImGui::InputDouble("Elasticity", &m_elast, 0, 0);
 	ImGui::InputDouble("Gravity", &m_gravity, 0, 0);
+
+	ImGui::Checkbox("Contact iteration", &m_iterativeResolution);
+	if (m_iterativeResolution)
+	{
+		ImGui::InputInt("Max contact iterations", &m_collisionIterations);
+	}
+
+	const char* combo[3] = {"Off", "Sequential", "Simultaneous (LCP)"};
+	ImGui::Combo("Simultaneous contacts", &m_multiContactResolution, combo, sizeof(combo) / sizeof(char*));
+
+	ImGui::Checkbox("Split timestep", &m_splitTimestep);
+	if (m_splitTimestep)
+	{
+		ImGui::InputDouble("Minimum dt ratio", &m_minDtRatio, 0, 0);
+	}
+
+	ImGui::Checkbox("Sleep mode", &m_sleepMode);
+	if (m_sleepMode)
+	{
+		ImGui::InputDouble("Sleep movement threshold", &m_sleepThreshold, 0, 0);
+	}
+
+	ImGui::Checkbox("Speculative contacts", &m_speculativeContacts);
 }
 
 void ObstacleSubSim::setFriction(double friction) 

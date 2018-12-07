@@ -37,6 +37,8 @@ class RigidObject : public BaseObject {
 	void setName(const char* name);
 	void addCounter();
 	void resetCounter();
+	void setTime(double time);
+	void minTime(double time);
 
     double getMass() const;
     double getMassInv() const;
@@ -55,6 +57,7 @@ class RigidObject : public BaseObject {
 	bool isActive() const;
 	std::string getName() const;
 	bool exceededCounter(int32_t thres) const;
+	double getTime() const;
 #pragma endregion GettersAndSetters
 
    protected:
@@ -76,6 +79,7 @@ class RigidObject : public BaseObject {
 	bool m_active; // Whether object physically active
 	std::string m_name; // Identifier
 	int32_t m_counter; // Activity counter
+	double m_time; // Time to simulate
 };
 
 #endif

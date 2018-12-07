@@ -4,6 +4,9 @@
 #include "RigidObject.h"
 #include <functional>
 
+
+#define SMALL_NUMBER 0.00001
+
 typedef std::function<void(const Eigen::Vector3d&, const Eigen::Vector3d&)> VertexLamba;
 typedef std::function<void(const Eigen::Vector3d& from, const Eigen::Vector3d& dir, double len)> EdgeLamba;
 
@@ -17,17 +20,40 @@ struct HitResult
 	Eigen::Vector3d location;	// Hitpoint on the surface
 	Eigen::Vector3d normal;		// Surface normal
 	double depth;				// Penetration depth
-	double times;				// 
+	double times;				// Ray time
+
+	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 };
 
 struct Contact
 {
 	Contact();
+	double computeSpeedAndSlide(Eigen::Vector3d& Slide) const;
+	double computeSpeed() const;
+
 	BlockObstacle* ours;
 	BlockObstacle* theirs;
 	Eigen::Vector3d location;	// Hitpoint on the surface
 	Eigen::Vector3d normal;		// Surface normal
+};
+
+struct MacroContact : Contact
+{
+	MacroContact();
 	double time;				// Contact time
+};
+
+struct NodeContact : Contact
+{
+	NodeContact(const Contact& Contact, int32_t iterations);
+	int32_t iterations;			// Contact iterations
+};
+
+struct MicroContact : Contact
+{
+	MicroContact(const Contact& Contact, double coeff);
+	double computeResponse() const;
+	double coeff;				// Contact response multiplier
 };
 
 struct Simplex
@@ -86,10 +112,10 @@ public:
 	bool hitTest(const BlockObstacle* other, std::vector<HitResult>& hits) const;
 
 	// Continuous collision time estimation over a given timestep, returns minimum hitTime
-	double hitSweepTime(BlockObstacle* other, double dt, double min, std::vector<Contact>& contacts);
+	double hitSweepTime(BlockObstacle* other, double dt, std::vector<MacroContact>& contacts);
 
 	// Does a hittest and resolves penetrations by moving objects instantly
-	void resolvePenetration(BlockObstacle* other);
+	void resolvePenetration(BlockObstacle* other, double factor);
 
 	// Returns whether this block can interact with another obstacle
 	bool isHitActive(BlockObstacle* other) const;
@@ -98,8 +124,12 @@ public:
 	bool isMoving(double threshold) const;
 
 	// Collision handling
-	void BlockObstacle::applyImpulseSingle(const Eigen::Vector3d& relative, double coeff, const Eigen::Vector3d& normal, const Eigen::Vector3d& hitpoint);
-	void BlockObstacle::applyImpulseMulti(const Eigen::Vector3d& relative, BlockObstacle* other, double coeff, const Eigen::Vector3d& normal, const Eigen::Vector3d& hitpoint);
+	void applyImpulseSingle(double relative, const Eigen::Vector3d& normal, const Eigen::Vector3d& hitpoint);
+	void applyImpulseMulti(double relative, BlockObstacle* other, const Eigen::Vector3d& normal, const Eigen::Vector3d& hitpoint);
+
+	void applyImpulse(double j, const Eigen::Vector3d& normal, const Eigen::Vector3d& angular);
+	void computeImpulse(const Eigen::Vector3d& normal, const Eigen::Vector3d& hitpoint, Eigen::Vector3d& angular, Eigen::Vector3d& impulse) const;
+	void computeImpulse(BlockObstacle* other, const Eigen::Vector3d& otherHitpoint, const Eigen::Vector3d& normal, const Eigen::Vector3d& hitpoint, Eigen::Vector3d& impulse) const;
 	
 private:
 

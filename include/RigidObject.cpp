@@ -13,7 +13,8 @@ m_torque(Eigen::Vector3d::Zero()),
 m_extend(Eigen::Vector3d::Zero()),
 m_active(false),
 m_name(""),
-m_counter(0)
+m_counter(0),
+m_time(0.0)
 {
     findAndLoadMesh(mesh_file);
     setType(t);
@@ -29,7 +30,7 @@ void RigidObject::resetMembers() {
     setAngularMomentum(Eigen::Vector3d::Zero());
     resetForce();
     resetTorque();
-	m_active = true;
+	setActive(true);
 	m_counter = 0;
 }
 
@@ -133,6 +134,14 @@ void RigidObject::setTorque(const Eigen::Vector3d& t) {
 
 void RigidObject::setActive(bool active) {
 	if (m_type != ObjType::DYNAMIC) return;
+	
+	if (m_active != active)
+	{
+		const double ratio = m_active ? 0.5 : 1.0;
+		Eigen::MatrixXd colors = Eigen::MatrixXd(1, 3);
+		colors << ratio, ratio, ratio;
+		setColors(colors);
+	}
 
 	m_active = active;
 }
@@ -150,6 +159,16 @@ void RigidObject::addCounter()
 void RigidObject::resetCounter()
 {
 	m_counter = 0;
+}
+
+void RigidObject::setTime(double time)
+{
+	m_time = time;
+}
+
+void RigidObject::minTime(double time)
+{
+	m_time = std::min(time, m_time);
 }
 
 void RigidObject::resetForce() { m_force.setZero(); };
@@ -203,6 +222,12 @@ std::string RigidObject::getName() const {
 
 bool RigidObject::exceededCounter(int32_t thres) const {
 	return(m_counter > thres);
+}
+
+
+double RigidObject::getTime() const
+{
+	return(m_time);
 }
 
 #pragma endregion GettersAndSetters

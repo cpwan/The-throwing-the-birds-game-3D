@@ -4,8 +4,10 @@
 #include "BlockObstacle.h"
 #include "SubSim.h"
 
+#define MULTI_CONTACT_OFF 0
+#define MULTI_CONTACT_SEQ 1
+#define MULTI_CONTACT_LCP 2
 
-#define SMALL_NUMBER 0.001
 /*
  * 
  */
@@ -20,7 +22,12 @@ public:
 	virtual bool advance(float time, float dt) override;
 
 	// Collision iteration (counts number of iterations)
-	int32_t collide(const std::vector<BlockObstacle*>& obstacles, float dt, int32_t iteration);
+	int32_t collide(const std::vector<BlockObstacle*>& obstacles, float dt);
+
+	// Resolve contacts
+	void resolve(std::vector<std::vector<NodeContact>>& leaves);
+	bool addNode(const Contact& contact, std::vector<MicroContact>& out);
+	void resolve(const std::vector<MicroContact>& contacts);
 
 	virtual void drawSimulationParameterMenu() override;
 
@@ -39,6 +46,19 @@ private:
 	double m_elast;
 	double m_gravity;
 
+	bool m_iterativeResolution;
+	int m_collisionIterations;
+	int m_multiContactResolution;
+
+	bool m_splitTimestep;
+	double m_minDtRatio;
+
+	bool m_sleepMode;
+	double m_sleepThreshold;
+
+	bool m_speculativeContacts;
+
+	// Objects
 	int m_marker;
 	int m_ground;
 
