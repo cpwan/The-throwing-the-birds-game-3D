@@ -124,11 +124,12 @@ public:
 	bool isMoving(double threshold) const;
 
 	// Collision handling
-	void applyImpulseSingle(double relative, const Eigen::Vector3d& normal, const Eigen::Vector3d& hitpoint);
-	void applyImpulseMulti(double relative, BlockObstacle* other, const Eigen::Vector3d& normal, const Eigen::Vector3d& hitpoint);
+	double applyImpulseSingle(double relative, const Eigen::Vector3d& normal, const Eigen::Vector3d& hitpoint);
+	double applyImpulseMulti(double relative, BlockObstacle* other, const Eigen::Vector3d& normal, const Eigen::Vector3d& hitpoint);
 
 	void applyImpulse(double j, const Eigen::Vector3d& normal, const Eigen::Vector3d& angular);
 	void computeImpulse(const Eigen::Vector3d& normal, const Eigen::Vector3d& hitpoint, Eigen::Vector3d& angular, Eigen::Vector3d& impulse) const;
+	void computeImpulse(const Eigen::Vector3d& center, const Eigen::Matrix3d& InertiaInvWorld, double MassInv, const Eigen::Vector3d& otherHitpoint, const Eigen::Vector3d& normal, const Eigen::Vector3d& hitpoint, Eigen::Vector3d& impulse) const;
 	void computeImpulse(BlockObstacle* other, const Eigen::Vector3d& otherHitpoint, const Eigen::Vector3d& normal, const Eigen::Vector3d& hitpoint, Eigen::Vector3d& impulse) const;
 	
 private:

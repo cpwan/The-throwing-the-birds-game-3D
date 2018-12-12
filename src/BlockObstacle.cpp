@@ -561,9 +561,9 @@ bool BlockObstacle::isMoving(double threshold) const
 	return(change > threshold);
 }
 
-void BlockObstacle::applyImpulseMulti(double relative, BlockObstacle* other, const Eigen::Vector3d& normal, const Eigen::Vector3d& hitpoint)
+double BlockObstacle::applyImpulseMulti(double relative, BlockObstacle* other, const Eigen::Vector3d& normal, const Eigen::Vector3d& hitpoint)
 {
-	if (relative > 0.0) return;
+	if (relative > 0.0) return(0.0);
 
 	// Compute response
 	Eigen::Vector3d ownAngular, ownImpulse;
@@ -579,11 +579,12 @@ void BlockObstacle::applyImpulseMulti(double relative, BlockObstacle* other, con
 	// Apply to both
 	applyImpulse(j, normal, ownAngular);
 	other->applyImpulse(j, -normal, theirAngular);
+	return(j);
 }
 
-void BlockObstacle::applyImpulseSingle(double relative, const Eigen::Vector3d& normal, const Eigen::Vector3d& hitpoint)
+double BlockObstacle::applyImpulseSingle(double relative, const Eigen::Vector3d& normal, const Eigen::Vector3d& hitpoint)
 {
-	if (relative > 0.0) return;
+	if (relative > 0.0) return(0.0);
 
 	// Compute response
 	Eigen::Vector3d ownAngular, ownImpulse;
@@ -596,6 +597,7 @@ void BlockObstacle::applyImpulseSingle(double relative, const Eigen::Vector3d& n
 
 	// Apply to own
 	applyImpulse(j, normal, ownAngular);
+	return(j);
 }
 
 void BlockObstacle::applyImpulse(double j, const Eigen::Vector3d& normal, const Eigen::Vector3d& angular)
@@ -615,16 +617,18 @@ void BlockObstacle::computeImpulse(const Eigen::Vector3d& normal, const Eigen::V
 	impulse = angular.cross(radius) + normal * invMass;
 }
 
-
-void BlockObstacle::computeImpulse(BlockObstacle* other, const Eigen::Vector3d& otherHitpoint, const Eigen::Vector3d& normal, const Eigen::Vector3d& hitpoint, Eigen::Vector3d& impulse) const
+void BlockObstacle::computeImpulse(const Eigen::Vector3d& center, const Eigen::Matrix3d& InertiaInvWorld, double MassInv, const Eigen::Vector3d& otherHitpoint, const Eigen::Vector3d& normal, const Eigen::Vector3d& hitpoint, Eigen::Vector3d& impulse) const
 {
 	const Eigen::Vector3d ownCenter = getPosition();
 	const Eigen::Vector3d ownRadius = hitpoint - ownCenter;
 
-	const Eigen::Vector3d theirCenter = getPosition();
-	const Eigen::Vector3d theirRadius = hitpoint - theirCenter;
-	const double invMass = other->getMassInv();
+	const Eigen::Vector3d theirRadius = otherHitpoint - center;
 
-	const Eigen::Vector3d angular = other->getInertiaInvWorld() * ownRadius.cross(normal);
-	impulse = angular.cross(theirRadius) + normal * invMass;
+	const Eigen::Vector3d angular = InertiaInvWorld * ownRadius.cross(normal);
+	impulse = angular.cross(theirRadius) + normal * MassInv;
+}
+
+void BlockObstacle::computeImpulse(BlockObstacle* other, const Eigen::Vector3d& otherHitpoint, const Eigen::Vector3d& normal, const Eigen::Vector3d& hitpoint, Eigen::Vector3d& impulse) const
+{
+	return(computeImpulse(other->getPosition(), other->getInertiaInvWorld(), other->getMassInv(), otherHitpoint, normal, hitpoint, impulse));
 }

@@ -21,6 +21,9 @@ public:
 	virtual void resetMembers() override;
 	virtual bool advance(float time, float dt) override;
 
+	// Get objects active in collisions
+	void getCollideables(std::vector<BlockObstacle*>& obstacles);
+
 	// Collision iteration (counts number of iterations)
 	int32_t collide(const std::vector<BlockObstacle*>& obstacles, float dt);
 
@@ -41,11 +44,14 @@ public:
 #pragma endregion SettersAndGetters
 
 private:
+
+	// General settings
 	double m_friction;
 	double m_initial;
 	double m_elast;
 	double m_gravity;
 
+	// Collision settings
 	bool m_iterativeResolution;
 	int m_collisionIterations;
 	int m_multiContactResolution;

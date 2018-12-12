@@ -87,18 +87,13 @@ void ObstacleSubSim::resetMembers() {
 							Eigen::AngleAxisd(0.0 / 2, Eigen::Vector3d::UnitY()));
 }
 
-bool ObstacleSubSim::advance(float time, float dt) {
-
+bool ObstacleSubSim::advance(float time, float dt) 
+{
 	BlockObstacle* collisionMarker = (BlockObstacle*)&getObject(m_marker);
 	
+	// Get obstacles to operate on
 	std::vector<BlockObstacle*> obstacles;
-	obstacles.push_back((BlockObstacle*)&getObject(m_ground));
-	obstacles.push_back((BlockObstacle*)&getObject(m_obstacleA));
-	obstacles.push_back((BlockObstacle*)&getObject(m_obstacleB));
-	obstacles.push_back((BlockObstacle*)&getObject(m_obstacleC));
-	obstacles.push_back((BlockObstacle*)&getObject(m_obstacleD));
-	obstacles.push_back((BlockObstacle*)&getObject(m_obstacleE));
-	obstacles.push_back((BlockObstacle*)&getObject(m_obstacleF));
+	getCollideables(obstacles);
 
 	// Apply external forces
 	for (BlockObstacle* obstacle : obstacles)
@@ -163,6 +158,17 @@ bool ObstacleSubSim::advance(float time, float dt) {
 	return(false);
 }
 
+void ObstacleSubSim::getCollideables(std::vector<BlockObstacle*>& obstacles)
+{
+	obstacles.clear();
+	obstacles.push_back((BlockObstacle*)&getObject(m_ground));
+	obstacles.push_back((BlockObstacle*)&getObject(m_obstacleA));
+	obstacles.push_back((BlockObstacle*)&getObject(m_obstacleB));
+	obstacles.push_back((BlockObstacle*)&getObject(m_obstacleC));
+	obstacles.push_back((BlockObstacle*)&getObject(m_obstacleD));
+	obstacles.push_back((BlockObstacle*)&getObject(m_obstacleE));
+	obstacles.push_back((BlockObstacle*)&getObject(m_obstacleF));
+}
 
 int32_t ObstacleSubSim::collide(const std::vector<BlockObstacle*>& obstacles, float dt)
 {
@@ -475,28 +481,18 @@ void ObstacleSubSim::resolve(const std::vector<MicroContact>& contacts)
 				if (m_multiContactResolution == MULTI_CONTACT_LCP)
 				{
 					Eigen::VectorXd rx = x;
-					for(int k = 0; k < 20; k++)
+
+					// Compute impulse magnitudes
+					const double lam = 1.0;
+					for (int k = 0; k < 500; k++)
 					{
+						const Eigen::VectorXd r = A * x + b;
 						for (int i = 0; i < n; i++)
 						{
-							double sum = b(i);
-							for (int j = 0; j < n; j++)
-							{
-								if (i != j)
-								{
-									sum = sum - (A(i, j) * x(j));
-								}
-							}
-							const double d = A(i, i);
-							if (d > SMALL_NUMBER)
-							{
-								x(i) = sum / d;
-							}
-							else
-							{
-								x(i) = 0.0f;
-							}
-						}					}
+							x(i) = std::max(0.0, x(i) - lam * r(i) / A(i,i));
+						}
+					}
+
 					x = x.cwiseMax(0.0);
 
 					const double diff = (rx - x).norm();
@@ -535,20 +531,6 @@ void ObstacleSubSim::resolve(const std::vector<MicroContact>& contacts)
 							}
 						}
 					}
-
-					/*
-					// Compute impulse magnitudes
-					const double lam = 1.0;
-					for (int k = 0; k < 500; k++)
-					{
-						const Eigen::VectorXd r = A * x + b;
-						for (int i = 0; i < n; i++)
-						{
-							x(i) = std::max(0.0, x(i) - lam * r(i) / A(i,i));
-						}
-					}
-
-					*/
 				}
 			}
 
