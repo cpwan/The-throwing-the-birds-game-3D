@@ -47,7 +47,7 @@ Hit tests on whole objects return multiple hits. Helper functions do a sweep or 
 
 ### Obstacle simulation class
 
-The obstacle simulation class moves obstacles and resolves contacts. In the advance function, first all objects are moves (symplectic solved), then collisions are removed then unmoved objects put to sleep. External simulations can access the obstacles using getCollideables.
+The obstacle simulation class moves obstacles and resolves contacts. In the advance function, first all objects are moved (symplectic solved), then collisions are resolved, then unmoved objects put to sleep. External simulations can access the obstacles using getCollideables.
 
 Multiple features can be enabled via the UI.
 
