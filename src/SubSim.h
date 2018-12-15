@@ -27,6 +27,9 @@ public:
 
 #pragma region SettersAndGetters
 
+	bool hasName(const std::string& name) const;
+	SubSim* getSubSim(const std::string& name) const;
+
 #pragma endregion SettersAndGetters
 
 protected:

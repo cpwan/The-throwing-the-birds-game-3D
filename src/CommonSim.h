@@ -30,6 +30,8 @@ public:
 
 #pragma region SettersAndGetters
 
+	SubSim* getSubSim(const std::string& name) const;
+
 #pragma endregion SettersAndGetters
 
 	// Create and add given sub-simulation

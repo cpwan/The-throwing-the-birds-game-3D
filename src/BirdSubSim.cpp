@@ -1,4 +1,5 @@
 #include "BirdSubSim.h"
+#include "ObstacleSubSim.h"
 #include "Gui.h"
 #include <igl/edges.h>
 #include <Eigen/SVD>
@@ -70,6 +71,12 @@ void BirdSubSim::resetMembers() {
 }
 
 bool BirdSubSim::advance(float time, float dt) {
+
+
+	ObstacleSubSim* obstacleSim = (ObstacleSubSim*)getSubSim("Obstacle");
+	std::vector<BlockObstacle*> collideables;
+	obstacleSim->getCollideables(collideables);
+	std::cout << collideables.size() << std::endl;
 
 	Eigen::MatrixXd V, V_new,V_rigid;
 	Eigen::MatrixXi F;

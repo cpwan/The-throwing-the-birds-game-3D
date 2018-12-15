@@ -82,6 +82,17 @@ void CommonSim::renderRenderGeometry(igl::opengl::glfw::Viewer &viewer) {
 	}
 }
 
+
+SubSim* CommonSim::getSubSim(const std::string& name) const
+{
+	for (SubSim* subSim : m_subSims) {
+		if (subSim->hasName(name)) {
+			return(subSim);
+		}
+	}
+	return(nullptr);
+}
+
 void CommonSim::updateSimulationParameters() {
 	for (SubSim* subSim : m_subSims) {
 		subSim->updateSimulationParameters();

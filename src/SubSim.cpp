@@ -43,3 +43,17 @@ RigidObject& SubSim::getObject(int i) const {
 	assert(0 <= i && i < objects.size() && "Object index out of bounds");
 	return(objects[i]);
 }
+
+bool SubSim::hasName(const std::string& name) const
+{
+	return(m_name == name);
+}
+
+SubSim* SubSim::getSubSim(const std::string& name) const
+{
+	if (p_parent)
+	{
+		return(p_parent->getSubSim(name));
+	}
+	return(nullptr);
+}
