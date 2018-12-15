@@ -16,7 +16,7 @@ BirdSubSim::BirdSubSim(CommonSim* parent)
 	m_angle = 0.6;
 	m_initial_impluse = 20;
 	ground = -3.0;
-	groundNormal << 0, 1, -0.5;
+	groundNormal << 0, 1, 0;
 	groundNormal.normalize();
 	groundNormal = groundNormal.transpose();
 }
@@ -76,7 +76,9 @@ bool BirdSubSim::advance(float time, float dt) {
 	ObstacleSubSim* obstacleSim = (ObstacleSubSim*)getSubSim("Obstacle");
 	std::vector<BlockObstacle*> collideables;
 	obstacleSim->getCollideables(collideables);
-	std::cout << collideables.size() << std::endl;
+	//std::cout << collideables.size() << std::endl;
+	
+
 
 	Eigen::MatrixXd V, V_new,V_rigid;
 	Eigen::MatrixXi F;
@@ -145,8 +147,10 @@ bool BirdSubSim::advance(float time, float dt) {
 		m_velocities[i] += body->getMassInv() * dt*(fint[i] + fext[i] - fdamp[i]+ fRigidCore[i]);
 
 		V_new.row(i) = V.row(i) + dt * m_velocities[i].transpose();
-		
+	
+
 		// replace <ground with contact detection, e.g. (normal|constant) dot (x,y,z,1)<0
+		/*
 		if (V_new.row(i).dot(groundNormal) < ground) {
 			Eigen::Vector3d deltaV = dt * m_velocities[i].transpose();
 
@@ -160,12 +164,65 @@ bool BirdSubSim::advance(float time, float dt) {
 			m_velocities[i] = m_velocities[i]- m_velocities[i].dot(groundNormal)*groundNormal;
 
 		}
+
+
+		*/
+
+
+
 	}
 
+	HitResult hit;
+	int hitResult;
+	for (BlockObstacle* obstacle : collideables) {
+		for (int i = 0; i < V_new.rows(); i++) {
+
+			hitResult = obstacle->hitTestPoint(oldCOM, V_new.row(i).transpose()	 - oldCOM, hit);
+			if (hitResult) { 
+				
+				aPtOnContactSurface = hit.location;
+				
+				cout << "Hitted!\t" << hitResult << endl; 
+			
+							
+					Eigen::Vector3d deltaV = dt * m_velocities[i].transpose();
+					Eigen::Vector3d surfaceNormal = hit.normal;
+
+					double numerator = (aPtOnContactSurface.transpose() - V_new.row(i)).dot(surfaceNormal);
+					double denominator = deltaV.dot(surfaceNormal);
+					double t = numerator / denominator;
+					Eigen::Vector3d r = deltaV * (1 - t);
+					Eigen::Vector3d fr = r - (surfaceNormal.dot(r))*surfaceNormal;
+
+					V_new.row(i) -= r.dot(surfaceNormal)*surfaceNormal + fr * m_floor_friction; //comment this line to let the bird swim horizontally
+					m_velocities[i] = m_velocities[i] - m_velocities[i].dot(surfaceNormal)*surfaceNormal;
+
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			}
+
+
+
+
+
+
+
+
+
+		}
+	}
+		
+
+
 	body->setMesh(V_new, F);
-
-	
-
 
 	Eigen::Vector3d newCOM = V_new.colwise().mean();
 	Eigen::Vector3d rigidCOM = V_rigid.colwise().mean();
@@ -196,7 +253,7 @@ bool BirdSubSim::advance(float time, float dt) {
 	rightFoot = &getObject(m_rightFoot);
 	rightFoot->setPosition(R*(rightFoot->getPosition() - rigidCOM) + newCOM);
 	rightFoot->setRotation(R*rightFoot->getRotationMatrix());
-
+	
 
 
 
