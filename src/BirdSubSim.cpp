@@ -19,6 +19,8 @@ BirdSubSim::BirdSubSim(CommonSim* parent)
 	groundNormal << 0, 1, 0;
 	groundNormal.normalize();
 	groundNormal = groundNormal.transpose();
+	block_impulse = 100.0;
+	bird_impulse_ratio = 1.5;
 }
 
 void BirdSubSim::addObjects() {
@@ -150,7 +152,7 @@ bool BirdSubSim::advance(float time, float dt) {
 	
 
 		// replace <ground with contact detection, e.g. (normal|constant) dot (x,y,z,1)<0
-		/*
+		
 		if (V_new.row(i).dot(groundNormal) < ground) {
 			Eigen::Vector3d deltaV = dt * m_velocities[i].transpose();
 
@@ -161,12 +163,12 @@ bool BirdSubSim::advance(float time, float dt) {
 			Eigen::Vector3d fr = r - (groundNormal.dot(r))*groundNormal;
 
 			V_new.row(i) -=r.dot(groundNormal)*groundNormal + fr * m_floor_friction; //comment this line to let the bird swim horizontally
-			m_velocities[i] = m_velocities[i]- m_velocities[i].dot(groundNormal)*groundNormal;
+			m_velocities[i] = m_velocities[i]- m_velocities[i].dot(groundNormal)*groundNormal*bird_impulse_ratio;
 
 		}
 
 
-		*/
+		
 
 
 
@@ -195,9 +197,9 @@ bool BirdSubSim::advance(float time, float dt) {
 					Eigen::Vector3d fr = r - (surfaceNormal.dot(r))*surfaceNormal;
 
 					V_new.row(i) -= r.dot(surfaceNormal)*surfaceNormal + fr * m_floor_friction; //comment this line to let the bird swim horizontally
-					m_velocities[i] = m_velocities[i] - m_velocities[i].dot(surfaceNormal)*surfaceNormal;
-
-			
+					m_velocities[i] = m_velocities[i] - m_velocities[i].dot(surfaceNormal)*surfaceNormal*bird_impulse_ratio;
+					
+					obstacle->applyImpulseSingle(denominator*block_impulse, -surfaceNormal, aPtOnContactSurface);
 			
 			
 			
@@ -286,7 +288,10 @@ void BirdSubSim::drawSimulationParameterMenu() {
 	ImGui::InputDouble("Bird rigid stiffness ratio", &spring_scale, 0, 0);
 	ImGui::InputDouble("Floor stiffness", &m_floor_stiffness, 0, 0);
 	ImGui::InputDouble("Floor friction", &m_floor_friction, 0, 0);
-	
+	ImGui::InputDouble("Block_impulse", &block_impulse, 0, 0);
+
+	ImGui::InputDouble("Bird_impulse_ratio", &bird_impulse_ratio, 0, 0);
+
 	
 }
 

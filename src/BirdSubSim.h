@@ -43,7 +43,8 @@ private:
 	int m_rightFoot;
 	int m_body;
 	double ground;
-
+	double block_impulse;
+	double bird_impulse_ratio;
 	RigidObject *body;
 	RigidObject *leftFoot;
 	RigidObject *rightFoot;
