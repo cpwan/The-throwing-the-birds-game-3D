@@ -27,7 +27,6 @@ public:
 	virtual void drawSimulationParameterMenu() override;
 
 
-
 #pragma region SettersAndGetters
 
 	void setCustom(double custom);
@@ -45,9 +44,13 @@ private:
 	double ground;
 	double block_impulse;
 	double bird_impulse_ratio;
+	double bird_impulse_angle_ratio;
 	RigidObject *body;
 	RigidObject *leftFoot;
 	RigidObject *rightFoot;
+
+	Eigen::Vector3d birdAngVelocity;
+	Eigen::Quaterniond birdRotation;
 
 	double m_mass;
 	double m_floor_stiffness;
@@ -70,6 +73,7 @@ private:
 	Eigen::MatrixXi m_Forig_rigid;
 
 	Eigen::Vector3d groundNormal;
+
 };
 
 #endif

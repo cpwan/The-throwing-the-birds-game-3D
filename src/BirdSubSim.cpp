@@ -14,13 +14,16 @@ BirdSubSim::BirdSubSim(CommonSim* parent)
 	m_spring.damping = 0.1;
 	m_floor_friction = 0.05;
 	m_angle = 0.6;
-	m_initial_impluse = 20;
+	m_initial_impluse = 50;
 	ground = -3.0;
 	groundNormal << 0, 1, 0;
 	groundNormal.normalize();
 	groundNormal = groundNormal.transpose();
 	block_impulse = 100.0;
 	bird_impulse_ratio = 1.5;
+	birdAngVelocity << 0, 0, 0;
+	birdRotation=Eigen::Quaterniond::Identity();
+	bird_impulse_angle_ratio = 0.001;
 }
 
 void BirdSubSim::addObjects() {
@@ -70,6 +73,9 @@ void BirdSubSim::resetMembers() {
 			(m_Vorig.row(m_edges(i, 0)) - m_Vorig.row(m_edges(i, 1)))
 			.norm();
 	}
+
+	birdAngVelocity << 0, 0, 0;
+	birdRotation = Eigen::Quaterniond::Identity();
 }
 
 bool BirdSubSim::advance(float time, float dt) {
@@ -184,7 +190,7 @@ bool BirdSubSim::advance(float time, float dt) {
 				
 				aPtOnContactSurface = hit.location;
 				
-				cout << "Hitted!\t" << hitResult << endl; 
+				//cout << "Hitted!\t" << hitResult << endl; 
 			
 							
 					Eigen::Vector3d deltaV = dt * m_velocities[i].transpose();
@@ -201,11 +207,13 @@ bool BirdSubSim::advance(float time, float dt) {
 					
 					obstacle->applyImpulseSingle(denominator*block_impulse, -surfaceNormal, aPtOnContactSurface);
 			
-			
-			
-			
-			
-			
+					Eigen::Vector3d angular, impulse;
+					obstacle->computeImpulse(surfaceNormal, aPtOnContactSurface, angular, impulse);
+					
+
+					birdAngVelocity -= bird_impulse_angle_ratio *denominator * block_impulse / surfaceNormal.dot(impulse) * angular;
+					
+					
 			
 			
 			
@@ -230,7 +238,7 @@ bool BirdSubSim::advance(float time, float dt) {
 	Eigen::Vector3d rigidCOM = V_rigid.colwise().mean();
 	
 	Eigen::MatrixXd q, p;
-	Eigen::MatrixXd A,R;
+	Eigen::Matrix3d A,R;
 	p = V_new.rowwise() - newCOM.transpose();
 	q= V_rigid.rowwise() - rigidCOM.transpose();
 
@@ -245,35 +253,41 @@ bool BirdSubSim::advance(float time, float dt) {
 	m_Vorig_rigid =(q*R).rowwise() + newCOM.transpose();
 	
 
+
+
+	const Eigen::Quaterniond prevRotation= birdRotation;
+
+	const double angle = birdAngVelocity.size();
+	if (angle*angle > 0.0f)
+	{
+		const Eigen::Vector3d axis = birdAngVelocity / angle;
+		const Eigen::AngleAxisd rotation = Eigen::AngleAxisd(0.5*angle * dt, axis);
+		const Eigen::Quaterniond quat = rotation * prevRotation;
+		birdRotation=quat.normalized();
+	}
 	
+	Eigen::Quaterniond q_R(R);
+	Eigen::Quaterniond q_RML(leftFoot->getRotationMatrix());
+	Eigen::Quaterniond q_RMR(rightFoot->getRotationMatrix());
 
+	Eigen::Matrix3d birdRotMat = (q_R*birdRotation).normalized().toRotationMatrix();
+	Eigen::Matrix3d birdRotMatL= (q_R*birdRotation*q_RML).normalized().toRotationMatrix();
+	Eigen::Matrix3d birdRotMatR = (q_R*birdRotation*q_RMR).normalized().toRotationMatrix();
 
+	cout << birdAngVelocity << endl;
 
 	leftFoot = &getObject(m_leftFoot);
-	leftFoot->setPosition(R*(leftFoot->getPosition() - rigidCOM) + newCOM);
-	leftFoot->setRotation(R*leftFoot->getRotationMatrix());
+	leftFoot->setPosition(birdRotMat*(leftFoot->getPosition() - rigidCOM) + newCOM);
+	leftFoot->setRotation(birdRotMatL);
+
 	rightFoot = &getObject(m_rightFoot);
-	rightFoot->setPosition(R*(rightFoot->getPosition() - rigidCOM) + newCOM);
-	rightFoot->setRotation(R*rightFoot->getRotationMatrix());
+	rightFoot->setPosition(birdRotMat*(rightFoot->getPosition() - rigidCOM) + newCOM);
+	rightFoot->setRotation(birdRotMatR);
 	
 
 
 
-
-	//cout << "after\n" << m_Vorig_rigid << endl;
-	//cout <<"sth here:"<< (p * p_t).ldlt().solve(p * q_t) << endl;
-	//for (int i = 0; i < V_new.rows(); i++) {
-
-	//	cout <<i<<":"<< V_new.row(i) << endl;
-
-	//}
-	//cout << "magic!" << endl;
-	//body->getMesh(V_new, F);
-	//for (int i = 0; i < V_new.rows(); i++) {
-	//
-	//	cout << i << ":" << V_new.row(i) << endl;
-
-	//}
+	
 	return(false);
 }
 
@@ -291,9 +305,11 @@ void BirdSubSim::drawSimulationParameterMenu() {
 	ImGui::InputDouble("Block_impulse", &block_impulse, 0, 0);
 
 	ImGui::InputDouble("Bird_impulse_ratio", &bird_impulse_ratio, 0, 0);
+	ImGui::InputDouble("Bird_impulse_angle_ratio", &bird_impulse_angle_ratio, 0, 0);
 
 	
 }
+
 
 void BirdSubSim::setCustom(double custom) {
 	m_custom = custom;
