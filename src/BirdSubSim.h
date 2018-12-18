@@ -51,7 +51,8 @@ private:
 
 	Eigen::Vector3d birdAngVelocity;
 	Eigen::Quaterniond birdRotation;
-
+	Eigen::Quaterniond initLeftRot;
+	Eigen::Quaterniond initRightRot;
 	double m_mass;
 	double m_floor_stiffness;
 	double m_floor_friction;
