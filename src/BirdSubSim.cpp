@@ -14,11 +14,16 @@ BirdSubSim::BirdSubSim(CommonSim* parent)
 	m_spring.damping = 0.1;
 	m_floor_friction = 0.05;
 	m_angle = 0.6;
-	m_initial_impluse = 20;
+	m_initial_impluse = 50;
 	ground = -3.0;
 	groundNormal << 0, 1, 0;
 	groundNormal.normalize();
 	groundNormal = groundNormal.transpose();
+	block_impulse = 100.0;
+	bird_impulse_ratio = 1.5;
+	birdAngVelocity << 0, 0, 0;
+	birdRotation=Eigen::Quaterniond::Identity();
+	bird_impulse_angle_ratio = 0.001;
 }
 
 void BirdSubSim::addObjects() {
@@ -68,6 +73,9 @@ void BirdSubSim::resetMembers() {
 			(m_Vorig.row(m_edges(i, 0)) - m_Vorig.row(m_edges(i, 1)))
 			.norm();
 	}
+
+	birdAngVelocity << 0, 0, 0;
+	birdRotation = Eigen::Quaterniond::Identity();
 }
 
 bool BirdSubSim::advance(float time, float dt) {
@@ -150,7 +158,7 @@ bool BirdSubSim::advance(float time, float dt) {
 	
 
 		// replace <ground with contact detection, e.g. (normal|constant) dot (x,y,z,1)<0
-		/*
+		
 		if (V_new.row(i).dot(groundNormal) < ground) {
 			Eigen::Vector3d deltaV = dt * m_velocities[i].transpose();
 
@@ -161,12 +169,17 @@ bool BirdSubSim::advance(float time, float dt) {
 			Eigen::Vector3d fr = r - (groundNormal.dot(r))*groundNormal;
 
 			V_new.row(i) -=r.dot(groundNormal)*groundNormal + fr * m_floor_friction; //comment this line to let the bird swim horizontally
-			m_velocities[i] = m_velocities[i]- m_velocities[i].dot(groundNormal)*groundNormal;
+			m_velocities[i] = m_velocities[i]- m_velocities[i].dot(groundNormal)*groundNormal*bird_impulse_ratio;
 
+			//Eigen::Vector3d radius = V.row(i);
+			//Eigen::Vector3d angular = body->getInertiaInvWorld() *radius.cross(groundNormal);
+			//Eigen::Vector3d impulse = angular.cross(radius) + groundNormal * body->getMassInv();
+
+			//birdAngVelocity -= -bird_impulse_angle_ratio * denominator * block_impulse / groundNormal.dot(impulse) * angular;
 		}
 
 
-		*/
+		
 
 
 
@@ -195,15 +208,17 @@ bool BirdSubSim::advance(float time, float dt) {
 					Eigen::Vector3d fr = r - (surfaceNormal.dot(r))*surfaceNormal;
 
 					V_new.row(i) -= r.dot(surfaceNormal)*surfaceNormal + fr * m_floor_friction; //comment this line to let the bird swim horizontally
-					m_velocities[i] = m_velocities[i] - m_velocities[i].dot(surfaceNormal)*surfaceNormal;
+					m_velocities[i] = m_velocities[i] - m_velocities[i].dot(surfaceNormal)*surfaceNormal*bird_impulse_ratio;
+					
+					obstacle->applyImpulseSingle(denominator*block_impulse, -surfaceNormal, aPtOnContactSurface);
+			
+					Eigen::Vector3d angular, impulse;
+					obstacle->computeImpulse(surfaceNormal, aPtOnContactSurface, angular, impulse);
+					
 
-			
-			
-			
-			
-			
-			
-			
+					birdAngVelocity -= -bird_impulse_angle_ratio *denominator * block_impulse / surfaceNormal.dot(impulse) * angular;
+					
+					
 			
 			
 			
@@ -228,7 +243,7 @@ bool BirdSubSim::advance(float time, float dt) {
 	Eigen::Vector3d rigidCOM = V_rigid.colwise().mean();
 	
 	Eigen::MatrixXd q, p;
-	Eigen::MatrixXd A,R;
+	Eigen::Matrix3d A,R;
 	p = V_new.rowwise() - newCOM.transpose();
 	q= V_rigid.rowwise() - rigidCOM.transpose();
 
@@ -243,35 +258,46 @@ bool BirdSubSim::advance(float time, float dt) {
 	m_Vorig_rigid =(q*R).rowwise() + newCOM.transpose();
 	
 
+
+
+	const Eigen::Quaterniond prevRotation= birdRotation.normalized();
+	cout <<"Before\t"<< birdRotation.w()<< birdRotation.x()<< birdRotation.y()<< birdRotation.z() << endl;
+	const double angle = birdAngVelocity.size();
+	Eigen::Quaterniond q_RML(leftFoot->getRotationMatrix());
+	Eigen::Quaterniond q_RMR(rightFoot->getRotationMatrix());
+
+
+	if (angle*angle > 0.0f&& birdAngVelocity.norm()>0.0f)
+	{
+		const Eigen::Vector3d axis = birdAngVelocity / angle;
+		const Eigen::AngleAxisd rotation = Eigen::AngleAxisd(angle * dt, axis);
+		const Eigen::Quaterniond quat = rotation * prevRotation;
+		birdRotation=quat.normalized();
+		cout << "hit!\t"<<birdRotation.w() << birdRotation.x() << birdRotation.y() << birdRotation.z() << endl;
+		q_RML = rotation * q_RML;
+	}
+	cout << "after\t" << birdRotation.w() << birdRotation.x() << birdRotation.y() << birdRotation.z() << endl;
+	Eigen::Quaterniond q_R(R);
+
 	
+	Eigen::Matrix3d birdRotMat = (q_R*birdRotation).normalized().toRotationMatrix();
+	Eigen::Matrix3d birdRotMatL= (q_R*birdRotation*q_RML).normalized().toRotationMatrix();
+	Eigen::Matrix3d birdRotMatR = (q_R*birdRotation*q_RMR).normalized().toRotationMatrix();
 
-
+	cout << "Angular velocity:\t "<<birdAngVelocity.transpose() << endl;
 
 	leftFoot = &getObject(m_leftFoot);
-	leftFoot->setPosition(R*(leftFoot->getPosition() - rigidCOM) + newCOM);
-	leftFoot->setRotation(R*leftFoot->getRotationMatrix());
+	leftFoot->setPosition(birdRotMat*(leftFoot->getPosition() - rigidCOM) + newCOM);
+	leftFoot->setRotation(birdRotMatL);
+
 	rightFoot = &getObject(m_rightFoot);
-	rightFoot->setPosition(R*(rightFoot->getPosition() - rigidCOM) + newCOM);
-	rightFoot->setRotation(R*rightFoot->getRotationMatrix());
+	rightFoot->setPosition(birdRotMat*(rightFoot->getPosition() - rigidCOM) + newCOM);
+	rightFoot->setRotation(birdRotMatR);
 	
 
 
 
-
-	//cout << "after\n" << m_Vorig_rigid << endl;
-	//cout <<"sth here:"<< (p * p_t).ldlt().solve(p * q_t) << endl;
-	//for (int i = 0; i < V_new.rows(); i++) {
-
-	//	cout <<i<<":"<< V_new.row(i) << endl;
-
-	//}
-	//cout << "magic!" << endl;
-	//body->getMesh(V_new, F);
-	//for (int i = 0; i < V_new.rows(); i++) {
-	//
-	//	cout << i << ":" << V_new.row(i) << endl;
-
-	//}
+	
 	return(false);
 }
 
@@ -286,9 +312,14 @@ void BirdSubSim::drawSimulationParameterMenu() {
 	ImGui::InputDouble("Bird rigid stiffness ratio", &spring_scale, 0, 0);
 	ImGui::InputDouble("Floor stiffness", &m_floor_stiffness, 0, 0);
 	ImGui::InputDouble("Floor friction", &m_floor_friction, 0, 0);
-	
+	ImGui::InputDouble("Block_impulse", &block_impulse, 0, 0);
+
+	ImGui::InputDouble("Bird_impulse_ratio", &bird_impulse_ratio, 0, 0);
+	ImGui::InputDouble("Bird_impulse_angle_ratio", &bird_impulse_angle_ratio, 0, 0);
+
 	
 }
+
 
 void BirdSubSim::setCustom(double custom) {
 	m_custom = custom;
