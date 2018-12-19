@@ -41,6 +41,8 @@ public:
 	void setElast(double elast);
 	void setGravity(double gravity);
 
+	double getFriction() const;
+
 #pragma endregion SettersAndGetters
 
 private:

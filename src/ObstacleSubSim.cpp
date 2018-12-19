@@ -109,6 +109,17 @@ void ObstacleSubSim::resetMembers() {
 
 bool ObstacleSubSim::advance(float time, float dt) 
 {
+	// BANDAID WARNING
+	// Why is the ground rotating? I don't know. When does it happen? I don't know.
+	// There is few obstacles, ground doesn't rotate. There is many obstacles, ground doesn't rotate.
+	// There is the exact right amount of obstacles, the ground rotates. I put a std::cout somehwere to check, 
+	// the ground stops rotating. What does the amount of obstacles have to do with the ground rotating?
+	// I DON'T KNOW. IT'S STATIC. IT SHOULDN'T ROTATE. SEND HELP.
+	RigidObject& ground = getObject(m_ground);
+	ground.setAngularVelocity(Eigen::Vector3d::Zero());
+	ground.setLinearVelocity(Eigen::Vector3d::Zero());
+
+
 	BlockObstacle* collisionMarker = (BlockObstacle*)&getObject(m_marker);
 	
 	// Get obstacles to operate on
@@ -623,4 +634,9 @@ void ObstacleSubSim::setElast(double elast)
 void ObstacleSubSim::setGravity(double gravity)
 {
 	m_gravity = gravity;
+}
+
+double ObstacleSubSim::getFriction() const
+{
+	return(m_friction);
 }
