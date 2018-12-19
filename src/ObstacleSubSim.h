@@ -76,6 +76,7 @@ private:
 	int m_obstacleE;
 	int m_obstacleF;
 
+	std::vector<int> m_randomObstacles;
 };
 
 #endif

@@ -18,6 +18,11 @@ ObstacleSubSim::ObstacleSubSim(CommonSim* parent)
 {
 }
 
+double dRand()
+{
+	return (double)rand() / RAND_MAX;
+}
+
 void ObstacleSubSim::addObjects() {
 
 	m_ground = addObject(BlockObstacle(Eigen::Vector3d(300.0, 20.0, 300.0), "Ground", ObjType::STATIC));
@@ -30,6 +35,14 @@ void ObstacleSubSim::addObjects() {
 	m_obstacleD = addObject(BlockObstacle(Eigen::Vector3d(4.0, 4.0, 4.0), "D", ObjType::DYNAMIC));
 	m_obstacleE = addObject(BlockObstacle(Eigen::Vector3d(1.0, 2.0, 12.0), "E", ObjType::DYNAMIC));
 	m_obstacleF = addObject(BlockObstacle(Eigen::Vector3d(1.0, 2.0, 12.0), "F", ObjType::DYNAMIC));
+
+	m_randomObstacles.clear();
+	/*
+	for (int i = 0; i < 64; i++)
+	{
+		const Eigen::Vector3d extend = Eigen::Vector3d(1.0 + dRand() * 5.0, 1.0 + dRand() * 5.0, 1.0 + dRand() * 5.0);
+		m_randomObstacles.push_back(addObject(BlockObstacle(extend, (std::to_string(i) + "_random_block").c_str(), ObjType::DYNAMIC)));
+	}*/
 }
 
 void ObstacleSubSim::resetMembers() {
@@ -85,6 +98,13 @@ void ObstacleSubSim::resetMembers() {
 	obstacleF.setRotation(	Eigen::AngleAxisd(0.0 / 4, Eigen::Vector3d::UnitZ()) *
 							Eigen::AngleAxisd(M_PI / 2, Eigen::Vector3d::UnitX()) *
 							Eigen::AngleAxisd(0.0 / 2, Eigen::Vector3d::UnitY()));
+
+	// Randomly position all blocks in a given area
+	for (int obstacle : m_randomObstacles)
+	{
+		RigidObject& obst = getObject(obstacle);
+		obst.setPosition(Eigen::Vector3d(-30.0 - dRand() * 50.0, 30.0 + dRand() * 200.0, -30.0 - dRand() * 50.0));
+	}
 }
 
 bool ObstacleSubSim::advance(float time, float dt) 
@@ -168,6 +188,11 @@ void ObstacleSubSim::getCollideables(std::vector<BlockObstacle*>& obstacles)
 	obstacles.push_back((BlockObstacle*)&getObject(m_obstacleD));
 	obstacles.push_back((BlockObstacle*)&getObject(m_obstacleE));
 	obstacles.push_back((BlockObstacle*)&getObject(m_obstacleF));
+
+	for (int obstacle : m_randomObstacles)
+	{
+		obstacles.push_back((BlockObstacle*)&getObject(obstacle));
+	}
 }
 
 int32_t ObstacleSubSim::collide(const std::vector<BlockObstacle*>& obstacles, float dt)
