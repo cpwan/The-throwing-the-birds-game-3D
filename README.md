@@ -44,7 +44,7 @@ Since only the rigid motion is desired, polar decomposition is applied to extrac
 
 
 We try to pull each vertice of the soft 
-body back to the 'rigid core' to avoid collapsing. We connect a 'sping' from 
+body back to the 'rigid core' to avoid collapsing. We connect a 'spring' from 
 each of the current soft body vertex to the corresponding vertex in the 'rigid core' 
 
 
