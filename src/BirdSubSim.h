@@ -48,13 +48,16 @@ private:
 	RigidObject *body;
 	RigidObject *leftFoot;
 	RigidObject *rightFoot;
+
 	Eigen::Vector3d initLeftFoot;
 	Eigen::Vector3d initRightFoot;
 	Eigen::Vector3d starting_pos;
+
 	Eigen::Vector3d birdAngVelocity;
 	Eigen::Quaterniond birdRotation;
 	Eigen::Quaterniond initLeftRot;
 	Eigen::Quaterniond initRightRot;
+	bool m_mssEnabledCollision;
 	double m_mass;
 	double m_floor_stiffness;
 	double m_floor_friction;
